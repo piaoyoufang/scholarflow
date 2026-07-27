@@ -1,0 +1,94 @@
+# GitHub Actions CI流水线名称：ScholarFlow持续集成
+name: ScholarFlow CI
+
+# 触发条件配置
+on:
+  # 提交PR到任意分支时自动执行CI
+  pull_request:
+  # 推送代码时触发
+  push:
+    # 推送到main主分支触发
+    branches:
+      - main
+    # 推送v开头的版本标签（如v0.1.0）触发发布流程
+    tags:
+      - "v*"
+
+# 授予运行器权限：仅允许读取仓库代码，遵循最小权限安全原则
+permissions:
+  contents: read
+
+# 并发控制：相同分支/标签的流水线互斥，新任务自动取消正在运行的旧任务，避免排队资源浪费
+concurrency:
+  group: scholarflow-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+# 任务1：离线发布门禁校验（无外部大模型、无容器网络依赖）
+jobs:
+  offline-gate:
+    # 使用Ubuntu最新版云端运行环境
+    runs-on: ubuntu-latest
+    # 单任务最大超时20分钟，超时自动终止防止卡死
+    timeout-minutes: 20
+
+    steps:
+      # 步骤1：拉取当前仓库代码到运行器
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # 步骤2：配置Python3.11环境，缓存pip依赖包加速重复构建
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          # 以锁定依赖文件作为缓存键，依赖不变则复用缓存
+          cache-dependency-path: requirements.lock.txt
+
+      # 步骤3：基于锁文件安装固定版本依赖，保证环境一致性
+      - name: Install locked dependencies
+        run: python -m pip install -r requirements.lock.txt
+
+      # 步骤4：初始化本地运行所需目录与环境变量模板
+      - name: Prepare local test environment
+        run: |
+          # 复制环境变量示例文件作为测试默认配置
+          cp .env.example .env
+          # 预先创建向量库、认证库、日志、报表、备份持久化目录
+          mkdir -p data/chroma data/memory data/auth logs reports backups
+
+      # 步骤5：执行全套离线发布门禁脚本（文件校验、版本校验、全量离线测试）
+      - name: Run offline release gate
+        run: python -m scripts.release_gate
+
+      # 步骤6：仅打版本标签时执行：校验Git标签与VERSION文件内版本号完全匹配
+      - name: Verify release tag matches VERSION
+        # 条件判断：当前触发来源是v开头的tag标签才执行
+        if: startsWith(github.ref, 'refs/tags/v')
+        # 读取VERSION文件拼接v前缀，和Git标签名称对比，不一致则流水线失败
+        run: test "v$(cat VERSION)" = "${GITHUB_REF_NAME}"
+
+  # 任务2：容器镜像构建校验，依赖离线门禁任务全部通过才会执行
+  docker-build:
+    # 依赖前置离线校验任务成功
+    needs: offline-gate
+    runs-on: ubuntu-latest
+    # 镜像构建最长30分钟超时
+    timeout-minutes: 30
+
+    steps:
+      # 拉取仓库代码
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # 复制生产环境变量模板，用于compose配置校验
+      - name: Prepare Compose environment
+        run: cp .env.production.example .env.production
+
+      # 校验docker-compose.yml语法、环境变量渲染是否合法，静默模式无报错即通过
+      - name: Validate Compose
+        run: docker compose config --quiet
+
+      # 基于Dockerfile构建项目镜像，镜像tag绑定本次Git提交SHA，方便追溯构建版本
+      - name: Build image
+        run: docker build --tag scholarflow:${{ github.sha }} .

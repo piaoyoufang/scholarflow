@@ -1,0 +1,14 @@
+.venv/
+.env
+__pycache__/
+.pytest_cache/
+data/chroma/
+data/memory/
+data/auth/
+.env.production
+logs/
+backups/
+reports/*.csv
+*.log
+.idea/
+*.pyc

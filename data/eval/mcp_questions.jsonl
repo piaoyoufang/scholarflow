@@ -1,0 +1,5 @@
+{"id":"mcp_001","question":"MCP 的接入顺序是什么？","expected_tool":"mcp","expected_keywords":["普通 Python 函数","MCP Server","Client","LangGraph"]}
+{"id":"mcp_002","question":"MCP Server 和 Client 分别负责什么？","expected_tool":"mcp","expected_keywords":["Server","Client","工具"]}
+{"id":"mcp_003","question":"Agent 接入外部工具时，MCP 的作用是什么？","expected_tool":"mcp","expected_keywords":["Agent","外部工具","协议"]}
+{"id":"mcp_004","question":"RAG 的作用是什么？","expected_tool":"any","expected_keywords":["证据","回答"]}
+{"id":"mcp_005","question":"为什么第十步先用 [MCP] 前缀做显式路由？","expected_tool":"any","expected_keywords":["稳定","调试"]}

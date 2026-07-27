@@ -1,0 +1,15 @@
+.venv
+.idea
+.pytest_cache
+__pycache__
+*.pyc
+.env
+.env.production
+backups
+logs
+reports
+data/chroma
+data/memory
+data/auth
+.git
+.gitignore

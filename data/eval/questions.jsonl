@@ -1,0 +1,20 @@
+{"question": "资料中第一个核心概念是什么？请用自己的话解释。", "expected_sources": ["course", "rag_notes", "mcp_notes", "project_architecture"], "required_keywords": ["概念", "定义", "作用"], "min_keyword_recall": 0.6}
+{"question": "资料中提到的整体流程是什么？请按步骤说明。", "expected_sources": ["course", "rag_notes", "mcp_notes", "project_architecture"], "required_keywords": ["流程", "步骤", "输入", "输出"], "min_keyword_recall": 0.6}
+{"question": "资料中为什么要使用 RAG？它解决了什么问题？", "expected_sources": ["course", "rag_notes", "mcp_notes", "project_architecture"], "required_keywords": ["检索", "证据", "幻觉"], "min_keyword_recall": 0.6}
+{"question": "资料中 LangGraph 的作用是什么？", "expected_sources": ["course", "rag_notes", "mcp_notes", "project_architecture"], "required_keywords": ["状态", "节点", "边"], "min_keyword_recall": 0.6}
+{"question": "资料中 Agent 和普通大模型调用有什么区别？", "expected_sources": ["course", "rag_notes", "mcp_notes", "project_architecture"], "required_keywords": ["工具", "规划", "执行"], "min_keyword_recall": 0.6}
+{"question": "资料中向量数据库的作用是什么？", "expected_sources": ["course", "rag_notes", "mcp_notes", "project_architecture"], "required_keywords": ["向量", "相似度", "检索"], "min_keyword_recall": 0.6}
+{"question": "资料中 Embedding 模型用来做什么？", "expected_sources": ["course", "rag_notes", "mcp_notes", "project_architecture"], "required_keywords": ["文本", "向量", "语义"], "min_keyword_recall": 0.6}
+{"question": "资料中为什么要对文档切块？", "expected_sources": ["course", "rag_notes", "mcp_notes", "project_architecture"], "required_keywords": ["切块", "上下文", "召回"], "min_keyword_recall": 0.6}
+{"question": "资料中 Top-K 参数是什么意思？调大或调小会有什么影响？", "expected_sources": ["course", "rag_notes", "mcp_notes", "project_architecture"], "required_keywords": ["Top-K", "召回", "噪声"], "min_keyword_recall": 0.6}
+{"question": "资料中引用 citation 为什么重要？", "expected_sources": ["course", "rag_notes", "mcp_notes", "project_architecture"], "required_keywords": ["来源", "可追溯", "证据"], "min_keyword_recall": 0.6}
+{"question": "资料中 FastAPI 在项目里负责什么？", "expected_sources": ["course", "rag_notes", "mcp_notes", "project_architecture"], "required_keywords": ["接口", "请求", "响应"], "min_keyword_recall": 0.6}
+{"question": "资料中 Streamlit 在项目里负责什么？", "expected_sources": ["course", "rag_notes", "mcp_notes", "project_architecture"], "required_keywords": ["界面", "输入", "展示"], "min_keyword_recall": 0.6}
+{"question": "资料中 schemas.py 的作用是什么？", "expected_sources": ["course", "rag_notes", "mcp_notes", "project_architecture"], "required_keywords": ["结构", "字段", "校验"], "min_keyword_recall": 0.6}
+{"question": "资料中 config.py 的作用是什么？为什么不直接把 Key 写进代码？", "expected_sources": ["course", "rag_notes", "mcp_notes", "project_architecture"], "required_keywords": ["配置", "环境变量", "密钥"], "min_keyword_recall": 0.6}
+{"question": "资料中 models.py 为什么要单独封装模型？", "expected_sources": ["course", "rag_notes", "mcp_notes", "project_architecture"], "required_keywords": ["复用", "模型", "配置"], "min_keyword_recall": 0.6}
+{"question": "资料中 loader.py 的职责是什么？", "expected_sources": ["course", "rag_notes", "mcp_notes", "project_architecture"], "required_keywords": ["加载", "切块", "入库"], "min_keyword_recall": 0.6}
+{"question": "资料中 search.py 的职责是什么？", "expected_sources": ["course", "rag_notes", "mcp_notes", "project_architecture"], "required_keywords": ["查询", "向量库", "相关文档"], "min_keyword_recall": 0.6}
+{"question": "资料中 nodes.py 和 builder.py 分别负责什么？", "expected_sources": ["course", "rag_notes", "mcp_notes", "project_architecture"], "required_keywords": ["节点", "图", "工作流"], "min_keyword_recall": 0.6}
+{"question": "资料中为什么要先做评估，再加入 MCP？", "expected_sources": ["course", "rag_notes", "mcp_notes", "project_architecture"], "required_keywords": ["基线", "对比", "稳定"], "min_keyword_recall": 0.6}
+{"question": "资料中后续加入 MCP 时，第一类工具建议做什么？", "expected_sources": ["course", "rag_notes", "mcp_notes", "project_architecture"], "required_keywords": ["搜索", "只读", "工具"], "min_keyword_recall": 0.6}

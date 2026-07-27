@@ -1,0 +1,95 @@
+# 定义本项目所有Docker Compose服务
+services:
+  # 后端API服务：FastAPI主接口服务
+  api:
+    # 镜像构建配置
+    build:
+      # 构建上下文为当前项目根目录
+      context: .
+      # 指定构建使用的Dockerfile文件
+      dockerfile: Dockerfile
+      # 默认使用当前网络可访问的Docker Hub镜像，可通过环境变量覆盖
+      args:
+        PYTHON_BASE_IMAGE: ${PYTHON_BASE_IMAGE:-docker.1ms.run/library/python:3.11-slim}
+    # 加载生产环境环境变量文件
+    env_file:
+      - .env.production
+    # 容器启动执行命令，启动uvicorn后端服务
+    command:
+      - python
+      - -m
+      - uvicorn
+      # 指定FastAPI入口实例
+      - app.api:app
+      # 监听所有网卡，允许外部/容器间访问
+      - --host
+      - 0.0.0.0
+      # 后端服务端口8000
+      - --port
+      - "8000"
+      # 单工作进程，适配LangGraph单会话持久化逻辑
+      - --workers
+      - "1"
+    # 宿主机与容器端口映射：宿主机8000转发容器8000
+    ports:
+      - "8000:8000"
+    # 数据持久化挂载，宿主机目录同步至容器内部
+    volumes:
+      # 向量库、认证库、断点会话库持久化
+      - ./data:/app/data
+      # 运行日志持久化存储
+      - ./logs:/app/logs
+      # MCP报表输出文件持久化
+      - ./reports:/app/reports
+    # 重启策略：手动停止容器才不会自动重启，崩溃/宿主机重启均自动拉起
+    restart: unless-stopped
+    # 容器健康检查配置，K8s/Compose就绪探针逻辑
+    healthcheck:
+      # 健康检测指令：调用就绪健康接口/health/ready校验数据库、向量库
+      test: [ "CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/ready', timeout=3)" ]
+      # 每30秒执行一次健康检测
+      interval: 30s
+      # 单次接口访问超时5秒判定失败
+      timeout: 5s
+      # 连续3次失败标记容器不健康
+      retries: 3
+      # 容器启动前30秒不执行健康检查，预留数据库初始化时间
+      start_period: 30s
+
+  # 前端Web可视化服务：Streamlit UI
+  web:
+    # 使用和api完全相同的Dockerfile镜像
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        PYTHON_BASE_IMAGE: ${PYTHON_BASE_IMAGE:-docker.1ms.run/library/python:3.11-slim}
+    # 复用生产环境变量配置文件
+    env_file:
+      - .env.production
+    # 单独注入前端专用环境变量，指向同容器网络内的后端服务
+    environment:
+      API_BASE_URL: http://api:8000
+    # 启动Streamlit可视化页面命令
+    command:
+      - python
+      - -m
+      - streamlit
+      - run
+      # 前端入口脚本
+      - ui.py
+      # 允许外部访问
+      - --server.address=0.0.0.0
+      # 前端固定端口8501
+      - --server.port=8501
+      # 无头模式，禁用浏览器弹窗，适配容器后台运行
+      - --server.headless=true
+    # 宿主机前端端口映射
+    ports:
+      - "8501:8501"
+    # 服务依赖：必须等api服务健康就绪后，才启动web前端
+    depends_on:
+      api:
+        condition: service_healthy
+    # 和后端保持一致的自动重启策略
+    restart: unless-stopped

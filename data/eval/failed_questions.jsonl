@@ -1,0 +1,4 @@
+{"question": "资料中第一个核心概念是什么？请用自己的话解释。", "expected_sources": ["course", "rag_notes", "mcp_notes", "project_architecture"], "required_keywords": ["概念", "定义", "作用"], "min_keyword_recall": 0.6}
+{"question": "资料中提到的整体流程是什么？请按步骤说明。", "expected_sources": ["course", "rag_notes", "mcp_notes", "project_architecture"], "required_keywords": ["流程", "步骤", "输入", "输出"], "min_keyword_recall": 0.6}
+{"question": "资料中为什么要对文档切块？", "expected_sources": ["course", "rag_notes", "mcp_notes", "project_architecture"], "required_keywords": ["切块", "上下文", "召回"], "min_keyword_recall": 0.6}
+{"question": "资料中 Top-K 参数是什么意思？调大或调小会有什么影响？", "expected_sources": ["course", "rag_notes", "mcp_notes", "project_architecture"], "required_keywords": ["Top-K", "召回", "噪声"], "min_keyword_recall": 0.6}

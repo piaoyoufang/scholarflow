@@ -34,11 +34,11 @@ jobs:
     steps:
       # 步骤1：拉取当前仓库代码到运行器
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       # 步骤2：配置Python3.11环境，缓存pip依赖包加速重复构建
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.11"
           cache: pip
@@ -56,6 +56,8 @@ jobs:
           cp .env.example .env
           # 预先创建向量库、认证库、日志、报表、备份持久化目录
           mkdir -p data/chroma data/memory data/auth logs reports backups
+          # 就绪探针要求Chroma核心数据库文件存在；离线门禁不调用Embedding，因此创建空占位文件
+          touch data/chroma/chroma.sqlite3
 
       # 步骤5：执行全套离线发布门禁脚本（文件校验、版本校验、全量离线测试）
       - name: Run offline release gate
@@ -79,7 +81,7 @@ jobs:
     steps:
       # 拉取仓库代码
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       # 复制生产环境变量模板，用于compose配置校验
       - name: Prepare Compose environment

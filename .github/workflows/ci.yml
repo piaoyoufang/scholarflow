@@ -93,4 +93,5 @@ jobs:
 
       # 基于Dockerfile构建项目镜像，镜像tag绑定本次Git提交SHA，方便追溯构建版本
       - name: Build image
-        run: docker build --tag scholarflow:${{ github.sha }} .
+        # GitHub运行器直连Docker Hub，避免国内镜像代理在海外返回403
+        run: docker build --build-arg PYTHON_BASE_IMAGE=python:3.11-slim --tag scholarflow:${{ github.sha }} .

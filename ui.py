@@ -78,6 +78,54 @@ def ensure_chat_state() -> None:
     if "messages" not in st.session_state:
         st.session_state.messages = []
 
+def load_thread_messages(thread_id: str) -> bool:
+    """
+    从后端SQLite持久化记忆中读取指定thread_id的历史消息，并写回页面缓存。
+    返回True表示读取成功，False表示后端无此线程或网络异常。
+    """
+    try:
+        response = httpx.get(
+            f"{API_BASE_URL}/threads/{thread_id}",
+            headers=auth_headers(),
+            timeout=30,
+        )
+    except httpx.RequestError:
+        return False
+
+    if not response.is_success:
+        return False
+
+    data = response.json()
+    st.session_state.thread_id = data["thread_id"]
+    st.session_state.messages = data.get("history", [])
+    return True
+
+def restore_latest_thread_or_new() -> None:
+    """
+    登录后优先恢复当前账号最近一次会话。
+    如果账号从来没有提问过，后端不会有thread记录，此时才创建全新会话。
+    """
+    try:
+        response = httpx.get(
+            f"{API_BASE_URL}/threads",
+            headers=auth_headers(),
+            timeout=30,
+        )
+    except httpx.RequestError:
+        st.session_state.thread_id = str(uuid4())
+        st.session_state.messages = []
+        return
+
+    if response.is_success:
+        threads = response.json().get("threads", [])
+        if threads:
+            latest_thread_id = threads[0]["thread_id"]
+            if load_thread_messages(latest_thread_id):
+                return
+
+    st.session_state.thread_id = str(uuid4())
+    st.session_state.messages = []
+
 def render_login_page() -> None:
     """
     未登录状态页面渲染函数：展示登录、注册双标签表单
@@ -123,9 +171,8 @@ def render_login_page() -> None:
                 if response.is_success:
                     # 把后端返回的双Token账号信息存入页面缓存
                     save_auth_data(response.json())
-                    # 登录重置对话线程、清空历史消息，隔离不同账号聊天数据
-                    st.session_state.thread_id = str(uuid4())
-                    st.session_state.messages = []
+                    # 登录后恢复该账号最近一次历史会话；没有历史时才创建新会话
+                    restore_latest_thread_or_new()
                     # 强制页面刷新，跳转聊天主页
                     st.rerun()
                 else:
@@ -182,8 +229,7 @@ def render_login_page() -> None:
                     if response.is_success:
                         # 注册成功保存会话缓存，重置对话
                         save_auth_data(response.json())
-                        st.session_state.thread_id = str(uuid4())
-                        st.session_state.messages = []
+                        restore_latest_thread_or_new()
                         st.rerun()
                     else:
                         # 展示后端返回错误（如用户名已存在）
@@ -217,6 +263,48 @@ with st.sidebar:
     st.caption(f"Access Token 到期：{st.session_state.expires_at}")
     # 展示长效刷新令牌过期时间
     st.caption(f"Refresh Token 到期：{st.session_state.refresh_expires_at}")
+
+    # 会话选择区：后端threads表保存“账号拥有哪些线程”，memory库保存“线程里的历史消息”
+    st.divider()
+    st.subheader("历史会话")
+    try:
+        threads_response = httpx.get(
+            f"{API_BASE_URL}/threads",
+            headers=auth_headers(),
+            timeout=30,
+        )
+        if threads_response.is_success:
+            threads = threads_response.json().get("threads", [])
+        else:
+            threads = []
+            st.caption(f"读取历史会话失败：{response_error(threads_response)}")
+    except httpx.RequestError as exc:
+        threads = []
+        st.caption(f"读取历史会话失败：{exc}")
+
+    if threads:
+        thread_options = [item["thread_id"] for item in threads]
+        if st.session_state.thread_id not in thread_options:
+            thread_options.insert(0, st.session_state.thread_id)
+        current_index = thread_options.index(st.session_state.thread_id)
+        selected_thread_id = st.selectbox(
+            "选择会话",
+            options=thread_options,
+            index=current_index,
+            format_func=lambda tid: (
+                "当前新会话（尚未保存）"
+                if not any(item["thread_id"] == tid for item in threads)
+                else f"{tid[:8]}...（"
+                f"{next((item['history_count'] for item in threads if item['thread_id'] == tid), 0)}条）"
+            ),
+        )
+        if selected_thread_id != st.session_state.thread_id:
+            if load_thread_messages(selected_thread_id):
+                st.rerun()
+            else:
+                st.error("读取该会话失败，请确认后端服务正常。")
+    else:
+        st.caption("当前账号还没有保存过历史会话。")
 
     # 侧边栏创建两列并排按钮：刷新Token、退出登录
     refresh_column, logout_column = st.columns(2)

@@ -493,6 +493,28 @@ ON refresh_sessions(user_id);
         if row["user_id"] != user_id:
             raise PermissionError("该线程属于其他用户")
 
+    # 查询当前用户拥有的全部线程，用于前端在刷新页面或重启容器后恢复历史会话入口
+    #:param user_id: 当前登录用户ID
+    #:return: 按创建时间倒序排列的线程元数据列表
+    def list_threads(self, user_id: str) -> list[dict[str, str]]:
+        with self._connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT thread_id, created_at
+                FROM threads
+                WHERE user_id = ?
+                ORDER BY created_at DESC
+                """,
+                (user_id,),
+            ).fetchall()
+        return [
+            {
+                "thread_id": row["thread_id"],
+                "created_at": row["created_at"],
+            }
+            for row in rows
+        ]
+
     # 删除对话线程归属记录，删除前强制校验用户所有权
     #:param user_id: 当前登录操作者用户ID
     #:param thread_id: 需要清空的对话线程ID

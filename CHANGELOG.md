@@ -1,4 +1,4 @@
-# Changelog
+﻿# Changelog
 
 本文件记录 ScholarFlow 每个正式版本对用户和部署者可见的变化。
 
@@ -8,7 +8,7 @@
 
 - 暂无。
 
-## [1.0.0] - YYYY-MM-DD
+## [1.0.0] - 2026-07-27
 
 ### Added
 
@@ -21,6 +21,7 @@
 - FastAPI 与 Streamlit 双服务 Docker Compose 部署。
 - 存活检查、就绪检查、一致性备份和恢复流程。
 - 离线发布门禁、GitHub Actions 和上线验收清单。
+- 前端支持登录后恢复最近历史会话，并可在侧边栏切换旧线程。
 
 ### Security
 

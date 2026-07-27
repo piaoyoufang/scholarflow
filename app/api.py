@@ -531,6 +531,26 @@ def ask(request: AskRequest, session: tuple[str, str] = Depends(current_session)
     # 将问答结果返回给接口上层，序列化后响应给前端页面
     return answer
 
+# 查询当前用户拥有的全部会话线程，用于前端刷新页面/重启容器后找回历史入口
+@app.get("/threads")
+def list_threads(session: tuple[str, str] = Depends(current_session)):
+    user_id, _token = session
+    threads = []
+    for item in auth_store.list_threads(user_id):
+        state = memory_workflow.get_state(
+            {"configurable": {"thread_id": item["thread_id"]}}
+        )
+        history = state.values.get("history", []) if state.values else []
+        threads.append(
+            {
+                "thread_id": item["thread_id"],
+                "created_at": item["created_at"],
+                "exists": bool(state.values),
+                "history_count": len(history),
+            }
+        )
+    return {"threads": threads}
+
 # 查询指定会话线程信息接口，需要鉴权并校验线程归属
 @app.get("/threads/{thread_id}")
 def get_thread(thread_id: str, session: tuple[str, str] = Depends(current_session)):
@@ -542,10 +562,12 @@ def get_thread(thread_id: str, session: tuple[str, str] = Depends(current_sessio
         {"configurable": {"thread_id": thread_id}}
     )
     # 组装线程信息返回：线程ID、是否存在、历史对话总条数
+    history = state.values.get("history", []) if state.values else []
     return {
         "thread_id": thread_id,
         "exists": bool(state.values),
-        "history_count": len(state.values.get("history", [])),
+        "history_count": len(history),
+        "history": history,
     }
 
 # 删除指定会话线程接口，清空对话记忆与权限绑定关系

@@ -13,6 +13,12 @@ class Settings(BaseSettings):
     chat_model: str = "qwen-plus"
     fast_model: str = "qwen-turbo"
     embedding_model: str = "text-embedding-v3"
+    rerank_model: str = "gte-rerank-v2"
+    rerank_base_url: str = (
+        "https://dashscope.aliyuncs.com/api/v1/services/"
+        "rerank/text-rerank"
+    )
+    rerank_timeout_seconds: float = 20
     vector_db_dir: str = "./data/chroma"
     checkpoint_db_path: str = "./data/memory/checkpoints.sqlite"
     auth_db_path: str = "./data/auth/auth.sqlite"

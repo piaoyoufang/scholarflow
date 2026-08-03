@@ -1,12 +1,12 @@
-from pathlib import Path
+import sys
 from uuid import uuid4
 
+import httpx
 from fastapi.testclient import TestClient
 from langchain_chroma import Chroma
 
 from app.api import UPLOAD_DIR, app
 from app.config import settings
-from app.graph.builder import memory_store
 from app.models import embeddings
 
 
@@ -16,7 +16,11 @@ def main() -> None:
     filename = f"{source_id}.md"
     verification_code = f"JADE-{unique.upper()}"
     thread_id = str(uuid4())
-    client = TestClient(app)
+    client = (
+        httpx.Client(base_url=sys.argv[1].rstrip("/"), timeout=180)
+        if len(sys.argv) == 2
+        else TestClient(app)
+    )
 
     session_response = client.post("/sessions")
     assert session_response.status_code == 200, session_response.text
@@ -73,14 +77,17 @@ def main() -> None:
         print("上传资料检索与引用：通过")
         print("会话标题与历史：通过")
     finally:
-        db.delete(where={"source_id": source_id})
-        target.unlink(missing_ok=True)
         try:
-            memory_store.delete_thread(thread_id)
+            client.delete(f"/threads/{thread_id}", headers=headers)
         except Exception:
             pass
-        client.delete(f"/threads/{thread_id}", headers=headers)
-        client.delete("/sessions/current", headers=headers)
+        try:
+            client.delete("/sessions/current", headers=headers)
+        except Exception:
+            pass
+        client.close()
+        db.delete(where={"source_id": source_id})
+        target.unlink(missing_ok=True)
 
 
 if __name__ == "__main__":

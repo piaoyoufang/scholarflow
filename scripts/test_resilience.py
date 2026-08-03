@@ -81,7 +81,7 @@ def test_sync_final_failure() -> None:
 
 
 # 异步测试用例：校验单次异步操作超时机制是否生效
-async def test_async_timeout() -> None:
+async def _run_async_timeout_case() -> None:
     # 执行耗时超过超时阈值的异步函数
     async def slow_operation() -> str:
         # 休眠0.2秒，远大于设定的0.01s超时
@@ -101,6 +101,10 @@ async def test_async_timeout() -> None:
         return
     # 未触发超时则测试失败
     raise AssertionError("异步操作没有按时超时")
+
+
+def test_async_timeout() -> None:
+    asyncio.run(_run_async_timeout_case())
 
 
 # 模拟持续报错的结构化模型类，用于mock替换真实chat_model/fast_model
@@ -294,7 +298,7 @@ def main() -> None:
     test_sync_final_failure()
     print("达到最大次数后停止：通过")
     # 异步运行异步超时测试用例
-    asyncio.run(test_async_timeout())
+    test_async_timeout()
     print("异步单次超时：通过")
     test_tool_router_success_returns_mapping()
     print("工具路由成功分支返回状态：通过")

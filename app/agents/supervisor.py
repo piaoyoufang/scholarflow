@@ -27,12 +27,22 @@ def _fallback_decision(question: str) -> SupervisorDecision:
         "eval_report",
         "mcp_eval_report",
     )
-    # 遍历关键词匹配，命中则路由至报告Agent，否则路由至知识检索Agent
-    next_agent = (
-        "report_agent"
-        if any(marker in question for marker in report_markers)
-        else "knowledge_agent"
+    diagnosis_markers = (
+        "系统状态",
+        "健康状态",
+        "运行指标",
+        "降级次数",
+        "失败次数",
+        "系统诊断",
+        "数据库状态",
     )
+    # 遍历关键词匹配，命中则路由至报告Agent，否则路由至知识检索Agent
+    if any(marker in question for marker in diagnosis_markers):
+        next_agent = "diagnosis_agent"
+    elif any(marker in question for marker in report_markers):
+        next_agent = "report_agent"
+    else:
+        next_agent = "knowledge_agent"
     # 组装降级分流决策，标记降级触发原因
     return SupervisorDecision(
         next_agent=next_agent,
@@ -56,8 +66,14 @@ def supervisor_node(state: AgentState) -> AgentState:
         original_question,
     ).strip()
 
+    # 显式诊断前缀优先，便于稳定测试诊断图分支。
+    if original_question.startswith("[DIAGNOSIS]"):
+        decision = SupervisorDecision(
+            next_agent="diagnosis_agent",
+            reason="用户使用[DIAGNOSIS]前缀强制进入诊断Agent。",
+        )
     # 分支1：用户输入带[REPORT]前缀，强制走报告生成Agent
-    if original_question.startswith("[REPORT]"):
+    elif original_question.startswith("[REPORT]"):
         decision = SupervisorDecision(
             next_agent="report_agent",
             reason="用户使用[REPORT]前缀强制进入报告Agent。",
@@ -77,6 +93,7 @@ def supervisor_node(state: AgentState) -> AgentState:
 可选Agent：
 1. knowledge_agent：课程资料、RAG、Embedding、向量库、LangGraph、MCP概念。
 2. report_agent：评估CSV、通过率、失败题、未通过原因、最近评估结果。
+3. diagnosis_agent：系统健康、数据库文件、运行指标、失败重试和整体评估状态。
 
 用户原始问题：
 {original_question}

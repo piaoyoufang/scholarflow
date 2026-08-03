@@ -8,6 +8,7 @@ from app.agents.workers import (
     answer_agent_node,
     knowledge_agent_node,
     report_agent_node,
+    diagnosis_agent_node,
 )
 # 导入流程图构建函数、Supervisor后的分支路由判断函数
 from app.graph.builder import build_graph, route_after_supervisor
@@ -32,6 +33,9 @@ def test_supervisor_forced_routes() -> None:
     knowledge = supervisor_node(
         {"question": "[KNOWLEDGE] RAG是什么？", "agent_trace": []}
     )
+    diagnosis = supervisor_node(
+        {"question": "[DIAGNOSIS] 系统状态", "agent_trace": []}
+    )
 
     # 校验REPORT前缀强制路由到report_agent
     check(
@@ -45,6 +49,10 @@ def test_supervisor_forced_routes() -> None:
     )
     # 校验执行链路自动追加supervisor标记
     check(report["agent_trace"] == ["supervisor"], "监督轨迹不正确")
+    check(
+        diagnosis["supervisor_decision"].next_agent == "diagnosis_agent",
+        "DIAGNOSIS前缀没有进入诊断Agent",
+    )
 
 
 # 测试用例2：校验Supervisor后的条件路由函数逻辑，含空决策兜底
@@ -60,6 +68,16 @@ def test_route_function() -> None:
     check(
         route_after_supervisor(state) == "report_agent",
         "条件边没有读取监督决策",
+    )
+    diagnosis_state = {
+        "supervisor_decision": SupervisorDecision(
+            next_agent="diagnosis_agent",
+            reason="测试",
+        )
+    }
+    check(
+        route_after_supervisor(diagnosis_state) == "diagnosis_agent",
+        "诊断条件边没有读取监督决策",
     )
     # 状态无分流决策时，兜底返回knowledge_agent
     check(
@@ -133,6 +151,20 @@ def test_worker_nodes_without_qwen() -> None:
         "报告Agent轨迹不正确",
     )
 
+    with patch(
+        "app.agents.workers.collect_diagnostics",
+        return_value="通用评估：20/20；运行指标：无失败",
+    ):
+        diagnosis = diagnosis_agent_node(
+            {"question": "系统状态", "agent_trace": ["supervisor"]}
+        )
+    check(diagnosis["tool_used"] == "diagnosis", "诊断工具标记不正确")
+    check(
+        diagnosis["agent_trace"] == ["supervisor", "diagnosis_agent"],
+        "诊断Agent轨迹不正确",
+    )
+    check(len(diagnosis["documents"]) == 1, "诊断证据没有写入文档")
+
     # 构造模拟最终回答结构化数据，替代真实大模型输出
     fake_answer = ResearchAnswer(
         answer="测试回答",
@@ -168,6 +200,7 @@ def test_graph_structure() -> None:
         "supervisor",
         "knowledge_agent",
         "report_agent",
+        "diagnosis_agent",
         "answer_agent",
     }
     # 校验预期节点全部存在于流程图中

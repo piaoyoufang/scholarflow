@@ -28,6 +28,8 @@ def tool_pass(expected_tool: str, actual_tool: str) -> bool:
         return actual_tool in {"mcp", "mcp_forced", "mcp_auto"}
     if expected_tool == "rag_only":
         return actual_tool == "rag_only"
+    if expected_tool == "diagnosis":
+        return actual_tool == "diagnosis"
     return False
 
 

@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     rerank_model: str = "gte-rerank-v2"
     rerank_base_url: str = (
         "https://dashscope.aliyuncs.com/api/v1/services/"
-        "rerank/text-rerank"
+        "rerank/text-rerank/text-rerank"
     )
     rerank_timeout_seconds: float = 20
     vector_db_dir: str = "./data/chroma"

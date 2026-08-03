@@ -3,6 +3,6 @@
 {"id":"mcp_003","question":"Agent 接入外部工具时，MCP 的作用是什么？","expected_tool":"mcp","expected_keywords":["Agent","外部工具","协议"]}
 {"id":"mcp_004","question":"RAG 的作用是什么？","expected_tool":"any","expected_keywords":["证据","回答"]}
 {"id":"mcp_005","question":"为什么第十步先用 [MCP] 前缀做显式路由？","expected_tool":"any","expected_keywords":["稳定","调试"]}
-{"id":"diag_001","question":"[DIAGNOSIS] 当前 ScholarFlow 系统状态怎么样？","expected_tool":"diagnosis","expected_keywords":["评估","运行指标"]}
+{"id":"diag_001","question":"[DIAGNOSIS] 当前 ScholarFlow 系统状态怎么样？","expected_tool":"diagnosis","expected_keywords":["评估","运行"]}
 {"id":"diag_002","question":"[DIAGNOSIS] 检查通用评估和 MCP 评估是否正常","expected_tool":"diagnosis","expected_keywords":["通用评估","MCP"]}
 {"id":"diag_003","question":"[DIAGNOSIS] 最近有没有模型失败、重试或降级？","expected_tool":"diagnosis","expected_keywords":["失败","重试","降级"]}

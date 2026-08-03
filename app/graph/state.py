@@ -17,6 +17,8 @@ class AgentState(TypedDict, total=False):
     question: str # 用户原始问题
     retrieval_question: str # AI 路由决策优化后的专用检索问句，专门传给 Chroma 检索、MCP 工具检索；
     history: Annotated[list[dict[str, str]], keep_recent_history] # LangGraph 专属绑定：每次节点写入 history 字段时，自动调用上面的归约函数,不写 Annotated：state["history"] = new_messages → 直接覆盖，旧历史全部丢失
+    memory_summary: str # 已离开最近窗口的关键信息滚动摘要，随checkpoint持久化
+    turn_count: int # 当前线程已完成的问答轮数，用于控制摘要频率
     documents: list[Document] # Chroma 召回的文档片段
     tool_decision: RouteDecision # MCP 路由决策模型（AI 判断是否调用 MCP）
     selected_tool: str  # Qwen 最终选择的 MCP 工具名

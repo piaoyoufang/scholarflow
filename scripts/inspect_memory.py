@@ -86,6 +86,12 @@ def main() -> None:
 
         print(f"  使用工具：{values.get('selected_tool') or 'none'}")
         print(f"  工具状态：{values.get('tool_used') or 'none'}")
+        print(f"  对话轮数：{values.get('turn_count', 0)}")
+        print(
+            "  长期摘要："
+            f"{_short_text(values.get('memory_summary'), max_length=300) or '无'}"
+        )
+        print(f"  最近消息数：{len(values.get('history', []))}")
         if values.get("mcp_error"):
             print(f"  MCP错误：{_short_text(values['mcp_error'])}")
 

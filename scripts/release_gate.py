@@ -38,6 +38,7 @@ OFFLINE_MODULES = [
     "scripts.test_token_lifecycle", # Token生命周期校验
     "scripts.test_thread_permissions",# 多线程权限控制测试
     "scripts.test_thread_history_api",# 线程列表与历史恢复接口测试
+    "scripts.test_summary_memory",   # 长期摘要与checkpoint持久化测试
     "scripts.test_observability",   # 监控指标埋点校验
     "scripts.test_rate_limit",      # 接口限流逻辑测试
     "scripts.test_multi_agent",     # 多Agent分流流程测试

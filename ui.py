@@ -307,6 +307,43 @@ with st.sidebar:
     else:
         st.caption("当前账号还没有保存过历史会话。")
 
+    st.divider()
+    st.subheader("上传知识资料")
+    uploaded_file = st.file_uploader(
+        "选择 PDF、TXT 或 Markdown",
+        type=["pdf", "txt", "md"],
+        accept_multiple_files=False,
+    )
+    if st.button(
+        "上传并入库",
+        disabled=uploaded_file is None,
+        use_container_width=True,
+    ):
+        try:
+            with st.spinner("正在解析、切片和向量化..."):
+                response = httpx.post(
+                    f"{API_BASE_URL}/documents/upload",
+                    headers=auth_headers(),
+                    files={
+                        "file": (
+                            uploaded_file.name,
+                            uploaded_file.getvalue(),
+                            uploaded_file.type or "application/octet-stream",
+                        )
+                    },
+                    timeout=300,
+                )
+            if response.is_success:
+                result = response.json()
+                st.success(
+                    f"{result['filename']} 已写入 "
+                    f"{result['chunk_count']} 个片段"
+                )
+            else:
+                st.error(response_error(response))
+        except httpx.RequestError as exc:
+            st.error(f"上传失败，无法连接后端：{exc}")
+
     # 侧边栏创建两列并排按钮：刷新Token、退出登录
     refresh_column, logout_column = st.columns(2)
 

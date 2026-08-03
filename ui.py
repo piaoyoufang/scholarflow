@@ -284,6 +284,7 @@ with st.sidebar:
 
     if threads:
         thread_options = [item["thread_id"] for item in threads]
+        thread_map = {item["thread_id"]: item for item in threads}
         if st.session_state.thread_id not in thread_options:
             thread_options.insert(0, st.session_state.thread_id)
         current_index = thread_options.index(st.session_state.thread_id)
@@ -293,9 +294,9 @@ with st.sidebar:
             index=current_index,
             format_func=lambda tid: (
                 "当前新会话（尚未保存）"
-                if not any(item["thread_id"] == tid for item in threads)
-                else f"{tid[:8]}...（"
-                f"{next((item['history_count'] for item in threads if item['thread_id'] == tid), 0)}条）"
+                if tid not in thread_map
+                else f"{thread_map[tid].get('title', '新会话')}"
+                     f"（{thread_map[tid].get('history_count', 0)}条）"
             ),
         )
         if selected_thread_id != st.session_state.thread_id:

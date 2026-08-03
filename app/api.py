@@ -439,6 +439,11 @@ def ask(request: AskRequest, session: tuple[str, str] = Depends(current_session)
     try:
         # 将本次对话线程绑定至当前登录用户；已绑定其他用户则抛出权限异常
         auth_store.claim_thread(user_id, request.thread_id)
+        auth_store.update_thread_title(
+            user_id,
+            request.thread_id,
+            request.question,
+        )
     except PermissionError as exc:
         # 捕获线程归属冲突异常，转换为403接口错误
         raise HTTPException(status_code=403, detail=str(exc)) from exc
@@ -547,6 +552,8 @@ def list_threads(session: tuple[str, str] = Depends(current_session)):
                 "created_at": item["created_at"],
                 "exists": bool(state.values),
                 "history_count": len(history),
+                "title": item.get("title", "新会话"),
+                "updated_at": item.get("updated_at", item["created_at"]),
             }
         )
     return {"threads": threads}

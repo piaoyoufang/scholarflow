@@ -2,6 +2,7 @@
 from pathlib import Path
 # 临时目录工具，运行结束自动销毁文件夹与数据库文件，避免残留测试数据
 from tempfile import TemporaryDirectory
+import sqlite3
 
 # 导入认证权限存储类，提供会话创建、鉴权、线程归属校验功能
 from app.security import AuthStore
@@ -63,10 +64,44 @@ def main() -> None:
             # 未捕获异常说明删除未生效，抛出断言错误
             raise AssertionError("删除后线程所有权记录应消失")
 
+        # 首次问题生成标题，后续问题只更新时间，不覆盖原始标题。
+        title_thread = "title-test-thread"
+        store.claim_thread(user_a, title_thread)
+        store.update_thread_title(user_a, title_thread, "RAG 的作用是什么")
+        store.update_thread_title(user_a, title_thread, "第二个问题不能覆盖标题")
+        listed = next(
+            item for item in store.list_threads(user_a)
+            if item["thread_id"] == title_thread
+        )
+        assert listed["title"] == "RAG 的作用是什么"
+        assert listed["updated_at"]
+
+        # 模拟 v1.0.0 旧库，验证升级时能安全增加并回填两个字段。
+        legacy_path = Path(directory) / "legacy.sqlite"
+        connection = sqlite3.connect(legacy_path)
+        try:
+            connection.execute(
+                "CREATE TABLE threads ("
+                "thread_id TEXT PRIMARY KEY, user_id TEXT NOT NULL, "
+                "created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"
+            )
+            connection.execute(
+                "INSERT INTO threads(thread_id, user_id) VALUES (?, ?)",
+                ("legacy-thread", "legacy-user"),
+            )
+            connection.commit()
+        finally:
+            connection.close()
+        legacy_store = AuthStore(legacy_path)
+        legacy_thread = legacy_store.list_threads("legacy-user")[0]
+        assert legacy_thread["title"] == "新会话"
+        assert legacy_thread["updated_at"]
+
     # 全部断言无报错，打印所有测试项通过提示
     print("Token 身份验证：通过")
     print("线程所有权隔离：通过")
     print("线程删除权限：通过")
+    print("会话标题和旧库迁移：通过")
 
 # 脚本直接运行时自动执行全套权限单元测试
 if __name__ == "__main__":

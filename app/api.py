@@ -1,11 +1,14 @@
 ﻿import logging
+import re
+from pathlib import Path
 from time import perf_counter
 from uuid import uuid4
 # 导入FastAPI依赖注入、框架核心、异常、HTTP状态码工具
-from fastapi import Depends, FastAPI, HTTPException, Request, status
+from fastapi import Depends, FastAPI, File, HTTPException, Request, UploadFile, status
 from fastapi.responses import JSONResponse
 # 导入Bearer鉴权工具，用于解析请求头中的Authorization令牌
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from starlette.concurrency import run_in_threadpool
 
 # 导入持久化会话存储、带记忆的Agent流程图实例
 from app.graph.builder import memory_store, memory_workflow
@@ -21,7 +24,8 @@ from app.schemas import (
 # 导入全局认证权限存储单例（用户登录、线程归属校验）
 from app.security import auth_store
 # 导入项目全局配置模块，读取日志目录、日志等级等配置参数
-from app.config import settings
+from app.config import PROJECT_ROOT, settings
+from app.ingestion.loader import ingest
 # 导入可观测性日志工具包内三个核心日志工具
 from app.observability import (
     # 全局日志初始化配置函数，配置控制台+文件双输出、JSON日志格式化
@@ -401,6 +405,88 @@ def get_runtime_metrics(
     }
 
 
+UPLOAD_DIR = PROJECT_ROOT / "data" / "raw" / "uploads"
+ALLOWED_UPLOAD_SUFFIXES = {".pdf", ".txt", ".md"}
+MAX_UPLOAD_BYTES = 10 * 1024 * 1024
+WINDOWS_RESERVED_NAMES = {
+    "CON", "PRN", "AUX", "NUL",
+    *(f"COM{index}" for index in range(1, 10)),
+    *(f"LPT{index}" for index in range(1, 10)),
+}
+
+
+def safe_upload_name(filename: str) -> str:
+    """Remove path traversal and characters unsafe on Windows/Linux."""
+    original = Path(filename).name
+    suffix = Path(original).suffix.lower()
+    stem = re.sub(
+        r"[^A-Za-z0-9_\-\u4e00-\u9fff]",
+        "_",
+        Path(original).stem,
+    ).strip("._")
+    stem = stem[:80] or "uploaded_document"
+    if stem.upper() in WINDOWS_RESERVED_NAMES:
+        stem = f"uploaded_{stem}"
+    return f"{stem}{suffix}"
+
+
+@app.post("/documents/upload")
+async def upload_document(
+    file: UploadFile = File(...),
+    session: tuple[str, str] = Depends(current_session),
+):
+    user_id, _token = session
+    filename = safe_upload_name(file.filename or "")
+    suffix = Path(filename).suffix.lower()
+    if suffix not in ALLOWED_UPLOAD_SUFFIXES:
+        raise HTTPException(
+            status_code=400,
+            detail="只支持 PDF、TXT 和 Markdown 文件",
+        )
+
+    content = await file.read(MAX_UPLOAD_BYTES + 1)
+    if len(content) > MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=413, detail="文件不能超过 10 MB")
+    if not content:
+        raise HTTPException(status_code=400, detail="不能上传空文件")
+
+    UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+    target = UPLOAD_DIR / filename
+    previous_content = target.read_bytes() if target.exists() else None
+    target.write_bytes(content)
+    try:
+        chunk_count = await run_in_threadpool(ingest, str(target))
+    except Exception as exc:
+        if previous_content is None:
+            target.unlink(missing_ok=True)
+        else:
+            target.write_bytes(previous_content)
+        logger.exception(
+            "document.upload.failed",
+            extra={
+                "event": "document.upload.failed",
+                "details": {"user_id": user_id, "filename": filename},
+            },
+        )
+        raise HTTPException(
+            status_code=422,
+            detail="文档解析或入库失败，请检查文件内容后重试",
+        ) from exc
+
+    logger.info(
+        "document.upload.completed",
+        extra={
+            "event": "document.upload.completed",
+            "details": {
+                "user_id": user_id,
+                "filename": filename,
+                "chunk_count": chunk_count,
+            },
+        },
+    )
+    return {"filename": filename, "chunk_count": chunk_count}
+
+
 # 核心问答接口，需携带Bearer Token鉴权
 @app.post("/ask")
 def ask(request: AskRequest, session: tuple[str, str] = Depends(current_session)):
@@ -439,6 +525,11 @@ def ask(request: AskRequest, session: tuple[str, str] = Depends(current_session)
     try:
         # 将本次对话线程绑定至当前登录用户；已绑定其他用户则抛出权限异常
         auth_store.claim_thread(user_id, request.thread_id)
+        auth_store.update_thread_title(
+            user_id,
+            request.thread_id,
+            request.question,
+        )
     except PermissionError as exc:
         # 捕获线程归属冲突异常，转换为403接口错误
         raise HTTPException(status_code=403, detail=str(exc)) from exc
@@ -547,6 +638,8 @@ def list_threads(session: tuple[str, str] = Depends(current_session)):
                 "created_at": item["created_at"],
                 "exists": bool(state.values),
                 "history_count": len(history),
+                "title": item.get("title", "新会话"),
+                "updated_at": item.get("updated_at", item["created_at"]),
             }
         )
     return {"threads": threads}

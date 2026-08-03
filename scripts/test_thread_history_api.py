@@ -78,6 +78,8 @@ def main() -> None:
         )
         assert current_thread["exists"] is True
         assert current_thread["history_count"] == 2
+        assert current_thread["title"] == "测试线程历史是否能被前端恢复"
+        assert current_thread["updated_at"]
 
         detail_response = client.get(f"/threads/{thread_id}", headers=headers)
         assert detail_response.status_code == 200, detail_response.text

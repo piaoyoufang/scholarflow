@@ -24,6 +24,7 @@ from app.agents.workers import (
     knowledge_agent_node,
     # 评估报表智能体：专用MCP查询评估报表数据，跳过向量检索
     report_agent_node,
+    diagnosis_agent_node,
     # 最终回答生成智能体：整合素材调用大模型输出完整回复
     answer_agent_node,
 )
@@ -57,6 +58,7 @@ def build_graph(checkpointer=None):
     graph.add_node("knowledge_agent", knowledge_agent_node)
     # 注册【评估报表智能体】节点，专门处理评估报告类查询
     graph.add_node("report_agent", report_agent_node)
+    graph.add_node("diagnosis_agent", diagnosis_agent_node)
     # 注册【最终回答生成】节点，统一汇总素材输出答案
     graph.add_node("answer_agent", answer_agent_node)
 
@@ -77,6 +79,7 @@ def build_graph(checkpointer=None):
             "knowledge_agent": "knowledge_agent",
             # 返回report_agent则流转至报表处理节点
             "report_agent": "report_agent",
+            "diagnosis_agent": "diagnosis_agent",
         },
     )
 
@@ -84,6 +87,7 @@ def build_graph(checkpointer=None):
     graph.add_edge("knowledge_agent", "answer_agent")
     # 报表处理节点执行完毕 → 统一进入回答生成节点
     graph.add_edge("report_agent", "answer_agent")
+    graph.add_edge("diagnosis_agent", "answer_agent")
     # 最终回答生成完成 → END流程结束节点，本轮对话终止
     graph.add_edge("answer_agent", END)
 

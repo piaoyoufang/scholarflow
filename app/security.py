@@ -104,7 +104,9 @@ class AuthStore:
                 CREATE TABLE IF NOT EXISTS threads (
                     thread_id TEXT PRIMARY KEY,        -- 对话会话唯一标识
                     user_id TEXT NOT NULL,             -- 该线程所属用户ID
-                    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP -- 线程绑定创建时间
+                    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, -- 线程绑定创建时间
+                    title TEXT NOT NULL DEFAULT '新会话', -- 首次问题生成的会话标题
+                    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP -- 最近提问时间
                 );
 
                 -- 用户账号主表，存储注册用户名、加密密码、用户唯一标识
@@ -162,6 +164,33 @@ ON refresh_sessions(user_id);
             connection.execute(
                 "UPDATE sessions SET revoked_at = CURRENT_TIMESTAMP "
                 "WHERE expires_at IS NULL AND revoked_at IS NULL"
+            )
+            # 查询threads数据表结构信息，遍历结果提取所有字段名称，存入集合
+            thread_columns = {
+                # 获取表结构每条记录中的字段名
+                row["name"]
+                # SQLite内置指令：读取threads表的完整字段定义信息
+                for row in connection.execute("PRAGMA table_info(threads)")
+            }
+
+            # 判断表内不存在title字段时执行新增逻辑
+            if "title" not in thread_columns:
+                # 执行SQL，为threads表新增title文本字段
+                connection.execute(
+                    # 新增title字段，TEXT类型；非空约束，历史数据/新建数据默认填充“新会话”
+                    "ALTER TABLE threads ADD COLUMN title TEXT "
+                    "NOT NULL DEFAULT '新会话'"
+                )
+
+            # 判断表内不存在updated_at字段时执行新增逻辑
+            if "updated_at" not in thread_columns:
+                # SQLite 不允许旧表通过 ALTER TABLE 添加 CURRENT_TIMESTAMP 默认值。
+                # 先增加普通字段，再用已有创建时间回填历史记录。
+                connection.execute(
+                    "ALTER TABLE threads ADD COLUMN updated_at TEXT"
+                )
+            connection.execute(
+                "UPDATE threads SET updated_at = COALESCE(updated_at, created_at)"
             )
 
     # 内部工具：生成新Token、加密哈希、过期时间三元组
@@ -476,6 +505,47 @@ ON refresh_sessions(user_id);
         if not row or row["user_id"] != user_id:
             raise PermissionError("该线程属于其他用户")
 
+    @staticmethod
+    def make_thread_title(question: str, max_length: int = 28) -> str:
+        # 去除首尾空白，多个空格统一压缩为单个空格，清洗输入文本
+        title = " ".join(question.strip().split())
+        # 清洗后内容为空，返回默认会话名称
+        if not title:
+            return "新会话"
+        # 文本长度≤阈值直接使用；超长则截断并添加省略号
+        return title if len(title) <= max_length else f"{title[:max_length]}..."
+
+    def update_thread_title(
+            self,
+            user_id: str,
+            thread_id: str,
+            question: str,
+    ) -> None:
+        # 权限校验：确认当前用户是该对话线程的所有者，无权限直接抛出异常
+        self.require_thread_owner(user_id, thread_id)
+        # 调用静态方法，基于用户提问生成标准化会话标题
+        title = self.make_thread_title(question)
+        # 获取数据库连接，开启事务执行更新
+        with self._connect() as connection:
+            connection.execute(
+                """
+                UPDATE threads
+                -- CASE分支：只有当前标题是默认值「新会话」时，才更新标题
+                -- 一旦用户自定义标题/首次生成标题后，后续不会覆盖
+                SET title      = CASE
+                                     WHEN title = '新会话' THEN ?
+                                     ELSE title
+                    END,
+                    -- 无论标题是否修改，更新线程最后修改时间
+                    updated_at = CURRENT_TIMESTAMP
+                -- 匹配指定线程ID + 用户ID，防止越权修改其他用户线程
+                WHERE thread_id = ?
+                  AND user_id = ?
+                """,
+                # SQL占位符参数：新标题、线程ID、用户ID
+                (title, thread_id, user_id),
+            )
+
     # 权限校验工具：校验当前用户是否为目标线程合法所有者，无权限直接抛异常
     #:param user_id: 当前登录用户ID
     #:param thread_id: 需要操作的对话线程ID
@@ -500,10 +570,10 @@ ON refresh_sessions(user_id);
         with self._connect() as connection:
             rows = connection.execute(
                 """
-                SELECT thread_id, created_at
+                SELECT thread_id, created_at, title, updated_at
                 FROM threads
                 WHERE user_id = ?
-                ORDER BY created_at DESC
+                ORDER BY updated_at DESC, created_at DESC
                 """,
                 (user_id,),
             ).fetchall()
@@ -511,6 +581,8 @@ ON refresh_sessions(user_id);
             {
                 "thread_id": row["thread_id"],
                 "created_at": row["created_at"],
+                "title": row["title"],
+                "updated_at": row["updated_at"],
             }
             for row in rows
         ]

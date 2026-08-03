@@ -6,6 +6,9 @@ from app.graph.nodes import (
     retrieve_node,
 )
 # 导入全局对话状态载体，存储整个问答流程所有中间数据
+from langchain_core.documents import Document
+
+from app.agents.diagnostics import collect_diagnostics
 from app.graph.state import AgentState
 # 导入工具路由决策结构化模型，定义工具调用相关字段
 from app.schemas import RouteDecision
@@ -120,6 +123,36 @@ def report_agent_node(state: AgentState) -> AgentState:
         ],
         "degraded": degraded,
         "degradation_reasons": degradation_reasons,
+    }
+
+
+def diagnosis_agent_node(state: AgentState) -> AgentState:
+    """Collect read-only system evidence for the common answer agent."""
+    evidence = collect_diagnostics()
+    decision = RouteDecision(
+        use_mcp=False,
+        tool_name="none",
+        query=state.get("retrieval_question", state["question"]),
+        reason="诊断Agent直接读取可信本地状态，不调用MCP。",
+    )
+    document = Document(
+        page_content=evidence,
+        metadata={
+            "source_id": "scholarflow_diagnostics",
+            "source_name": "ScholarFlow运行诊断",
+        },
+    )
+    return {
+        "documents": [document],
+        "mcp_results": [],
+        "mcp_error": "",
+        "tool_decision": decision,
+        "selected_tool": "diagnosis",
+        "tool_used": "diagnosis",
+        "agent_trace": [
+            *state.get("agent_trace", []),
+            "diagnosis_agent",
+        ],
     }
 
 

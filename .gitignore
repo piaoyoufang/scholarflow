@@ -5,6 +5,7 @@ __pycache__/
 data/chroma/
 data/memory/
 data/auth/
+data/raw/uploads/
 .env.production
 logs/
 backups/

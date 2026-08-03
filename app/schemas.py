@@ -106,9 +106,10 @@ class SupervisorDecision(BaseModel):
     next_agent: Literal[
         "knowledge_agent",  # 分支1：进入资料检索、引用匹配流程
         "report_agent",     # 分支2：直接生成总结报告，无需额外检索
+        "diagnosis_agent",  # 分支3：只读检查文件、评估与运行指标
     ] = Field(
         # 字段说明：告知大模型当前仅两个可选分流目标
-        description="下一步交给知识Agent或评估报告Agent。"
+        description="下一步交给知识Agent、评估报告Agent或只读诊断Agent。"
     )
     # 分流原因文本字段
     reason: str = Field(

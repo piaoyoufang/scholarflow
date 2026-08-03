@@ -41,6 +41,7 @@ def rewrite_question_node(state: AgentState) -> AgentState:
     question = state["question"].strip()
     # 2. 从全局状态读取对话历史，最多截取最后12条（6轮对话），避免上下文过长
     history = state.get("history", [])[-12:]
+    memory_summary = state.get("memory_summary", "")
 
     # 3. 定义本轮全新的临时状态重置字典
     # 每一轮新提问都要清空上一轮检索、MCP、工具标记的旧数据，防止历史残留干扰本轮流程
@@ -78,6 +79,9 @@ def rewrite_question_node(state: AgentState) -> AgentState:
 
 最近对话：
 {history_text}
+
+长期记忆摘要：
+{memory_summary or "无"}
 
 当前问题：
 {question}
@@ -260,6 +264,43 @@ def mcp_search_node(state: AgentState) -> AgentState:
         }
 
 
+def update_memory_summary(state: AgentState) -> str:
+    """每三轮压缩一次较早历史；失败时保留原摘要。"""
+    history = state.get("history", [])
+    old_summary = state.get("memory_summary", "")
+    next_turn = state.get("turn_count", 0) + 1
+
+    if len(history) < 8 or next_turn % 3 != 0:
+        return old_summary
+
+    older_text = "\n".join(
+        f"{item['role']}: {item['content']}"
+        for item in history[:-6]
+    )
+    prompt = f"""你负责压缩 ScholarFlow 对话记忆。
+只保留后续问答真正有用的信息：用户目标、明确偏好、已经确认的结论、
+项目路径、关键参数、尚未解决的问题。不要编造，不要保留寒暄。
+
+旧摘要：
+{old_summary or "无"}
+
+本次需要并入摘要的较早消息：
+{older_text or "无"}
+
+输出 300 字以内的纯文本摘要。
+"""
+    try:
+        result = run_with_retry(
+            lambda: fast_model().invoke(prompt),
+            component="model.memory_summary",
+        )
+        content = getattr(result, "content", result)
+        return str(content).strip() or old_summary
+    except Exception:
+        runtime_metrics.record_fallback("model.memory_summary")
+        return old_summary
+
+
 def answer_node(state: AgentState) -> AgentState:
     document_evidence = "\n\n".join(
         f"来源={doc.metadata.get('source_name')}，"
@@ -300,6 +341,8 @@ def answer_node(state: AgentState) -> AgentState:
         # 遍历裁剪后的历史列表，item为单条对话字典{"role":"xxx","content":"xxx"}
         for item in state.get("history", [])[-12:]
     )
+    memory_summary = update_memory_summary(state)
+    next_turn = state.get("turn_count", 0) + 1
 
     prompt = f"""你是证据优先的学习助理。只能根据证据回答，不足时明确说明。
 
@@ -315,6 +358,9 @@ def answer_node(state: AgentState) -> AgentState:
 9. 不要用“以下将回答”结束答案；写出引导语后必须继续给出完整实质内容。
 10. 如果问题询问“Agent 接入外部工具时，MCP 的作用是什么”，答案里必须明确出现
     “Agent”“外部工具”“协议”三个核心词，并说明 MCP 是 Agent 接入外部工具的标准协议。
+
+长期记忆摘要：
+{memory_summary or "无"}
 
 最近对话历史：
 {history_text or "无"}
@@ -359,6 +405,8 @@ def answer_node(state: AgentState) -> AgentState:
         return {
             "answer": result,
             "history": new_history,
+            "memory_summary": memory_summary,
+            "turn_count": next_turn,
             "degraded": True,
             "degradation_reasons": [
                 *state.get("degradation_reasons", []),
@@ -392,4 +440,9 @@ LangGraph 节点的验证顺序。
         {"role": "user", "content": state["question"]},
         {"role": "assistant", "content": result.answer},
     ]
-    return {"answer": result, "history": new_history}
+    return {
+        "answer": result,
+        "history": new_history,
+        "memory_summary": memory_summary,
+        "turn_count": next_turn,
+    }

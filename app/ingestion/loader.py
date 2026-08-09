@@ -14,7 +14,7 @@ from app.models import embeddings
 
 
 # load_file 函数：文件的读取、清洗与切分
-def load_file(path: str):
+def load_file(path: str, course_id: str | None = None, source_id: str | None = None):
     file = Path(path)
     if file.suffix.lower() == ".pdf":  # 获取文件后缀并转为小写（如 .PDF -> .pdf），确保兼容性。
         docs = PyPDFLoader(str(file)).load()  # 专门解析 PDF 二进制流，提取文本。注意：它对复杂排版（如双栏、表格）的处理能力有限。
@@ -35,16 +35,44 @@ def load_file(path: str):
     source_id: 使用文件名（不含后缀）作为 ID。这有助于在数据库中区分不同来源的文件。
     chunk_index: 给每个切片编号（0, 1, 2...）。这在后续做“重排序”或“引用页码”时非常有用。
     source_name: 保留原始文件名，用于在前端展示“来源：xxx.pdf”。"""
+    # 如果传入了source_id就用它；没有source_id，就取文件名(不带后缀)作为兜底source_id
+    real_source_id = source_id or file.stem
+
+    # 遍历切分后的文本块chunks，i是下标，doc是单个Document块对象
     for i, doc in enumerate(chunks):
-        doc.metadata.update({"source_id": file.stem, "chunk_index": i})
-        doc.metadata["source_name"] = file.name
+        # update批量给doc的metadata元字典批量写入多个字段
+        doc.metadata.update(
+            {
+                "source_id": real_source_id,  # 文档唯一标识，向量库内用来溯源属于哪一份文件
+                "source_name": file.name,  # 原始文件名，前端展示引用的时候显示原始文件名字
+                "chunk_index": i,  # 当前文本块在整篇文档中的序号，用于定位是第几段
+            }
+        )
+        # 如果course_id不为None/不为空，就把课程id写入元数据
+        if course_id:
+            doc.metadata["course_id"] = course_id
+
+    # 一定要把切好的 chunks 返回给 ingest。
+    # 如果这里不 return，Python 默认返回 None，后面的 len(chunks)、db.add_documents(chunks)
+    # 都会出错，课程上传任务就会失败。
     return chunks
 
 
 # 向量化与存储
-def ingest(path: str) -> int:
-    chunks = load_file(path)  #调用上面的函数，拿到切分好且带元数据的文档列表。
-    source_id = Path(path).stem
+def ingest(path: str, course_id: str | None = None, source_id: str | None = None) -> int:
+    """
+    文档摄入入口函数
+    :param path: 文件磁盘路径字符串
+    :param course_id: 课程id，可为None
+    :param source_id: 业务文档唯一id，可为None
+    :return: int 返回切块总数量
+    """
+    # 调用load_file函数：完成文件加载、文本切分、给每个chunk填充metadata元数据，返回Document块列表
+    chunks = load_file(path, course_id=course_id, source_id=source_id)
+
+    # 优先使用传入的source_id；如果source_id为None，就取文件不带后缀的文件名作为兜底id
+    # Path(path).stem：把字符串路径转为Path对象，取出不带扩展名的文件名
+    real_source_id = source_id or Path(path).stem
     """Chroma(...) 初始化:
     collection_name: 集合名称。类似于 SQL 数据库中的“表名”。这里叫 scholarflow，意味着所有学术相关的知识都存在这一张表里。
     embedding_function: 传入之前定义的嵌入模型。Chroma 会在内部自动调用这个模型，把 chunks 里的文本转成向量。
@@ -55,9 +83,13 @@ def ingest(path: str) -> int:
         persist_directory=settings.vector_db_dir,
     )
 
-    # 先删除该来源的旧片段，再写入当前版本，避免重复导入。
-    db.delete(where={"source_id": source_id})
+    # 根据metadata里面的source_id条件，删除向量库里所有匹配该source_id的文档块
+    db.delete(where={"source_id": real_source_id})
 
-    ids = [f"{source_id}:{index}" for index in range(len(chunks))]
+    # 如果course_id有值就用course_id，否则兜底字符串"default"
+    prefix = course_id or "default"
+
+    # 列表推导式：循环0 ~ len(chunks)-1，拼接生成每一个chunk的唯一id
+    ids = [f"{prefix}:{real_source_id}:{index}" for index in range(len(chunks))]
     db.add_documents(chunks, ids=ids)  # 执行真正的写入操作。
     return len(chunks)  # 返回成功入库的切片数量，用于给用户反馈（例如：“成功导入了 45 个知识片段”）。

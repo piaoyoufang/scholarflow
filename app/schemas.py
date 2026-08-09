@@ -120,3 +120,82 @@ class SupervisorDecision(BaseModel):
         # 字段描述，指导模型输出简短判断理由
         description="简短说明分流原因。",
     )
+
+# 创建课程时前端要传课程名和说明。
+class CourseCreateRequest(BaseModel):
+    """
+    创建课程的接口请求体模型
+    用于FastAPI接收前端POST传过来的json参数，自动校验参数合法性
+    """
+    # 课程名称：字符串，最小长度1，最大长度100；不能为空，长度超限会直接返回接口422错误
+    course_name: str = Field(min_length=1, max_length=100)
+    # 课程描述：字符串，默认是空字符串；最大长度1000；前端不传该字段就使用default=""
+    description: str = Field(default="", max_length=1000)
+
+
+class CourseMemberAddRequest(BaseModel):
+    """添加课程成员接口的请求体模型"""
+    # 用户id，非空，最大128字符
+    user_id: str = Field(min_length=1, max_length=128)
+    # 角色，只能二选一："teacher" / "student"；前端不传参数，默认值为 "student"
+    role_in_course: Literal["teacher", "student"] = "student"
+
+# 学习计划生成的请求体模型，前端POST请求传入参数
+class LearningPlanRequest(BaseModel):
+    """生成学习计划的入参请求模型"""
+    # 学习目标，最少1字符，最多500字符
+    goal: str = Field(min_length=1, max_length=500)
+    # 计划总天数，范围1~30天
+    days: int = Field(ge=1, le=30)
+    # 难度等级，只能三选一：beginner初级 / intermediate中级 / advanced高级；默认初级
+    difficulty: Literal["beginner", "intermediate", "advanced"] = "beginner"
+    # 每日建议学习分钟数，默认60分钟；最小10分钟，最大600分钟
+    daily_minutes: int = Field(default=60, ge=10, le=600)
+
+
+class LearningPlanDay(BaseModel):
+    """单天学习计划的数据模型，代表一天的学习内容"""
+    day: int                              # 第几天，例如1、2、3
+    topic: str                            # 当天学习主题标题
+    # 当天任务列表；default_factory=list，不传时自动初始化为空列表，不要直接写default=[]
+    tasks: list[str] = Field(default_factory=list)
+    expected_output: str = ""             # 学习完成之后期望产出/收获，默认为空字符串
+    # 引用来源列表，Citation是你项目的引用溯源模型；default_factory=list默认空数组
+    citations: list[Citation] = Field(default_factory=list)
+
+
+class LearningPlanResponse(BaseModel):
+    """后端返回给前端的完整学习计划响应模型"""
+    goal: str                                      # 用户原始学习目标
+    # 多天计划数组，每一项是LearningPlanDay对象；不传默认空列表
+    days: list[LearningPlanDay] = Field(default_factory=list)
+
+class QuizRequest(BaseModel):
+    """生成测验题的请求模型：前端传给后端的入参"""
+    # 测验主题，不能为空字符串，最大500字符
+    topic: str = Field(min_length=1, max_length=500)
+    # 题目数量，默认5道；最少1道，最多20道
+    question_count: int = Field(default=5, ge=1, le=20)
+    # 题目类型，只能是这4种里面的一个；默认简答题short_answer
+    question_type: Literal["single_choice", "true_false", "short_answer", "interview"] = "short_answer"
+    # 题目难度：easy简单 / medium中等 / hard困难，默认中等
+    difficulty: Literal["easy", "medium", "hard"] = "medium"
+
+
+class QuizItem(BaseModel):
+    """单道题的数据模型，代表一道测验题目"""
+    question: str                                  # 题目的题干文本
+    question_type: str                             # 题目类型，和请求里的类型保持一致
+    # 选择题选项列表；default_factory=list 每次实例生成全新空列表，避免 default=[] 的可变对象bug
+    options: list[str] = Field(default_factory=list)
+    answer: str                                    # 参考答案
+    explanation: str                                # 答案解析、知识点讲解
+    # 引用来源列表，Citation为溯源模型，存储source_id、source_name等，实现题目依据课程知识库
+    citations: list[Citation] = Field(default_factory=list)
+
+
+class QuizResponse(BaseModel):
+    """后端返回给前端的整套测验的响应模型"""
+    topic: str                                      # 用户请求的测验主题，回显给前端
+    # 整套题目数组，每一项是QuizItem对象；默认空列表
+    items: list[QuizItem] = Field(default_factory=list)

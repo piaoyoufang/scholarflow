@@ -8,13 +8,13 @@ from app.retrieval.rerank import rerank_documents
 from app.runtime_metrics import runtime_metrics
 
 
-def search(query: str, k: int = 6) -> list[tuple[Document, float]]:
+def search(query: str, k: int = 6, course_id: str | None = None) -> list[tuple[Document, float]]:
     """
-    检索入口主函数：向量+BM25混合召回 + 阿里Rerank精排
-    容灾策略：Rerank接口调用失败，自动降级直接返回混合检索结果
-    :param query: 用户查询文本
-    :param k: 最终向外输出的文档数量
-    :return: [(Document, 相关性分数)] 降序排列
+    RAG检索入口函数：执行混合召回，支持按课程过滤知识库
+    :param query: 用户输入的查询问题
+    :param k: 需要返回的候选文档数量，默认返回6条
+    :param course_id: 课程ID，传入后只检索该课程下的向量；None则不做课程过滤
+    :return: list[tuple[Document, float]]，元组列表，(文档对象,相关性分数)
     """
     # 校验查询文本，空字符串直接抛出异常
     if not query.strip():
@@ -33,14 +33,30 @@ def search(query: str, k: int = 6) -> list[tuple[Document, float]]:
     # 扩容策略：最终只返回k条，提前召回更多候选，给重排留出选择空间
     # 候选数量 = k*4，最低保底24条
     candidate_k = max(k * 4, 24)
-    # Chroma稠密向量检索，返回 [(Document, distance)]
-    vector_results = db.similarity_search_with_score(
-        query,
-        k=candidate_k,
-    )
-
-    # 取出向量库内全部文档文本+元数据，用于本地BM25关键词打分
-    stored = db.get(include=["documents", "metadatas"])
+    # 判断是否传入course_id，如果有值，开启元数据过滤，只检索该课程下的向量块
+    if course_id:
+        vector_results = db.similarity_search_with_score(
+            query,  # 用户检索的问题文本
+            k=candidate_k,  # 本次向量检索召回的候选数量（一般大于最终k，给rerank预留候选）
+            filter={"course_id": course_id},  # Chroma元数据过滤条件：只取metadata中course_id匹配的chunk
+        )
+    # course_id为None，不设置过滤条件，整个向量集合全部参与检索
+    else:
+        vector_results = db.similarity_search_with_score(
+            query,
+            k=candidate_k,
+        )
+    # 判断course_id是否存在（不为None、不为空字符串）
+    if course_id:
+        """
+        db.get()：Chroma原生查询接口，读取集合内的数据，不做相似度检索，是全量筛选
+        include=["documents", "metadatas"]：指定返回内容：返回文档文本、元数据；不返回向量embedding（节省内存）
+        where={"course_id": course_id}：where过滤条件，只取出metadata中course_id等于传入值的全部记录
+        """
+        stored = db.get(include=["documents", "metadatas"], where={"course_id": course_id})
+    else:
+        # course_id为空/None，不设置where过滤条件，读取集合中全部文档与元数据
+        stored = db.get(include=["documents", "metadatas"])
     # 将Chroma原始数据批量转为LangChain Document对象
     all_documents = [
         Document(

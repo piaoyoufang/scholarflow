@@ -13,3 +13,7 @@ reports/*.csv
 *.log
 .idea/
 *.pyc
+
+# local sqlite runtime databases
+data/**/*.sqlite
+data/**/*.sqlite3

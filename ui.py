@@ -1,328 +1,519 @@
-# 导入UUID工具，生成全局唯一对话线程ID
+﻿# 导入uuid4，用于生成全局唯一会话thread_id
 from uuid import uuid4
-
-# 导入httpx HTTP客户端，用于前端向后端FastAPI接口发送网络请求
+# httpx：http客户端库，streamlit前端调用FastAPI后端接口
 import httpx
-# 导入Streamlit网页框架，渲染前端页面、管理页面会话缓存
+# streamlit网页UI库，快速构建AI应用前端页面
 import streamlit as st
 
-# 导入项目全局配置，读取后端API基础地址
+# 从项目配置模块读取配置对象settings
 from app.config import settings
 
-# 读取配置中的后端接口根地址，rstrip("/") 去除末尾多余斜杠，避免拼接接口时出现//错误
+# 读取后端API基础地址，rstrip("/")去除末尾斜杠，防止拼接路径出现 "//"
 API_BASE_URL = settings.api_base_url.rstrip("/")
-
-# 常量定义：登录/注册/刷新Token后端返回的5项认证字段，统一管理方便存取、清空
+# 认证相关session_state字段列表，登录保存、退出登录清空复用该列表
 AUTH_KEYS = [
-    "user_id",          # 用户全局唯一ID
-    "access_token",     # 短期业务鉴权令牌
-    "expires_at",       # access_token过期UTC时间
-    "refresh_token",    # 长效刷新续期令牌
-    "refresh_expires_at"# refresh_token过期UTC时间
+    "user_id",               # 用户唯一id
+    "access_token",          # 短期访问令牌，调用接口鉴权
+    "expires_at",            # access_token过期时间
+    "refresh_token",         # 刷新令牌，用来获取新access_token
+    "refresh_expires_at",    # refresh_token过期时间
 ]
 
+
 def auth_headers() -> dict[str, str]:
-    """
-    封装鉴权请求头函数
-    返回标准Bearer鉴权头，所有需要登录校验的接口调用时携带
-    """
-    return {
-        # 拼接标准Authorization请求头，填入页面缓存里的access_token
-        "Authorization": f"Bearer {st.session_state.access_token}",
-    }
+    """所有需要登录的接口都统一从这里拿 Bearer Token 请求头。"""
+    # 组装Authorization请求头，带上Bearer令牌
+    return {"Authorization": f"Bearer {st.session_state.access_token}"}
+
 
 def save_auth_data(data: dict) -> None:
-    """
-    保存后端返回的账号双Token会话数据到Streamlit页面缓存
-    :param data: 后端AccountSessionResponse返回的完整json字典
-    """
-    # 遍历认证字段常量，批量写入页面会话缓存
+    """登录、注册、刷新 Token 成功后，把后端返回的账号会话保存到页面状态。"""
+    # 遍历认证字段列表，把后端返回数据存入streamlit会话状态
     for key in AUTH_KEYS:
         st.session_state[key] = data[key]
 
+
 def clear_auth_data() -> None:
-    """
-    清空页面缓存中所有登录认证相关字段，用户退出登录时调用
-    pop(key, None)：字段不存在也不会抛出报错，容错处理
-    """
+    """退出登录时清空账号相关缓存。"""
+    # 循环删除认证相关session状态，pop第二个参数None，key不存在不会抛异常
     for key in AUTH_KEYS:
         st.session_state.pop(key, None)
 
+
 def response_error(response: httpx.Response) -> str:
-    """
-    统一处理后端接口错误响应，格式化友好错误提示给用户
-    优先读取FastAPI标准返回的detail错误文本，读取失败则返回HTTP状态码
-    :param response: httpx请求返回的响应对象
-    :return: 可读错误字符串
-    """
+    """把 FastAPI 的错误响应转换成页面上能看懂的中文提示。"""
     try:
-        # 解析接口返回json，取出detail错误详情
+        # 尝试解析返回json
         detail = response.json().get("detail")
+        # 如果拿到detail错误信息，直接返回字符串
         if detail:
             return str(detail)
     except ValueError:
-        # 响应不是标准json格式，捕获解析异常，跳过
+        # 返回不是合法json，捕获解析异常，跳过
         pass
-    # 兜底错误文案，展示HTTP错误状态码
+    # 解析失败，返回HTTP状态码作为错误提示
     return f"请求失败，HTTP 状态码：{response.status_code}"
 
+
+def api_get(path: str, timeout: int = 30) -> httpx.Response:
+    """统一发送 GET 请求，path 只写 /courses 这种相对路径。"""
+    # 发起get请求，拼接基础地址，带上鉴权头，设置超时时间
+    return httpx.get(
+        f"{API_BASE_URL}{path}",
+        headers=auth_headers(),
+        timeout=timeout,
+    )
+
+
+def api_post(path: str, json: dict | None = None, timeout: int = 30) -> httpx.Response:
+    """统一发送 POST 请求，避免每个 tab 重复拼接 API_BASE_URL 和 headers。"""
+    # json为None时传空字典{}，避免httpx报错
+    return httpx.post(
+        f"{API_BASE_URL}{path}",
+        headers=auth_headers(),
+        json=json or {},
+        timeout=timeout,
+    )
+
+
 def ensure_chat_state() -> None:
-    """
-    登录成功后初始化对话状态缓存，不存在则自动创建
-    保证页面始终存在thread_id对话线程、messages聊天记录缓存
-    """
-    # 不存在对话线程ID则生成全新UUID
+    """初始化 Streamlit 页面状态：会话线程、聊天记录、当前课程。"""
+    # 如果session没有thread_id，生成全新uuid会话id
     if "thread_id" not in st.session_state:
         st.session_state.thread_id = str(uuid4())
-    # 不存在聊天记录列表则初始化空数组
+    # 如果没有messages聊天消息列表，初始化为空列表
     if "messages" not in st.session_state:
         st.session_state.messages = []
+    # 当前选中课程id，初始为空字符串
+    if "current_course_id" not in st.session_state:
+        st.session_state.current_course_id = ""
+    # 当前选中课程名称
+    if "current_course_name" not in st.session_state:
+        st.session_state.current_course_name = ""
+    # 用户在课程中的角色 teacher / student
+    if "current_course_role" not in st.session_state:
+        st.session_state.current_course_role = ""
+    # 最近一次异步任务task_id，方便查询任务状态
+    if "last_task_id" not in st.session_state:
+        st.session_state.last_task_id = ""
+
 
 def load_thread_messages(thread_id: str) -> bool:
-    """
-    从后端SQLite持久化记忆中读取指定thread_id的历史消息，并写回页面缓存。
-    返回True表示读取成功，False表示后端无此线程或网络异常。
-    """
+    """从后端恢复某个历史会话。"""
     try:
-        response = httpx.get(
-            f"{API_BASE_URL}/threads/{thread_id}",
-            headers=auth_headers(),
-            timeout=30,
-        )
+        # 根据thread_id调用接口获取会话详情
+        response = api_get(f"/threads/{thread_id}", timeout=30)
     except httpx.RequestError:
+        # 网络异常，直接返回False代表加载失败
         return False
 
+    # http状态码非2xx，返回失败
     if not response.is_success:
         return False
 
+    # 解析接口返回json
     data = response.json()
+    # 更新session里面thread_id
     st.session_state.thread_id = data["thread_id"]
+    # 取出历史对话记录，没有history返回空列表
     st.session_state.messages = data.get("history", [])
+    # 返回True代表加载会话成功
     return True
 
+
 def restore_latest_thread_or_new() -> None:
-    """
-    登录后优先恢复当前账号最近一次会话。
-    如果账号从来没有提问过，后端不会有thread记录，此时才创建全新会话。
-    """
+    """登录后优先恢复最近一次会话；没有历史则创建新会话。"""
     try:
-        response = httpx.get(
-            f"{API_BASE_URL}/threads",
-            headers=auth_headers(),
-            timeout=30,
-        )
+        # 获取该用户全部会话列表
+        response = api_get("/threads", timeout=30)
     except httpx.RequestError:
+        # 网络异常，直接新建空会话
         st.session_state.thread_id = str(uuid4())
         st.session_state.messages = []
         return
 
+    # 请求成功
     if response.is_success:
+        # 获取threads数组，没有返回空列表
         threads = response.json().get("threads", [])
         if threads:
+            # 取列表第一条，代表最新会话
             latest_thread_id = threads[0]["thread_id"]
+            # 尝试加载该会话，加载成功直接return
             if load_thread_messages(latest_thread_id):
                 return
 
+    # 没有会话 / 加载会话失败，新建会话
     st.session_state.thread_id = str(uuid4())
     st.session_state.messages = []
 
+
 def render_login_page() -> None:
-    """
-    未登录状态页面渲染函数：展示登录、注册双标签表单
-    无合法access_token时执行，阻断聊天页面渲染
-    """
-    # 页面主标题
-    st.title("ScholarFlow")
-    # 二级副标题
+    """未登录时展示登录/注册页面。"""
+    # 设置页面大标题
+    st.title("ScholarFlow｜AI 课程知识库与学习助手")
+    # 设置子标题
     st.subheader("账号登录")
 
     # 创建两个标签页：登录、注册
     login_tab, register_tab = st.tabs(["登录", "注册"])
 
-    # ========== 登录标签页逻辑 ==========
+    # 登录tab内部代码块
     with login_tab:
-        # 创建表单容器，统一提交按钮触发校验
+        # st.form表单组件，点击submit才会一次性提交表单数据
         with st.form("login_form"):
-            # 用户名输入框，key区分缓存避免控件冲突
+            # 用户名输入框，key区分组件状态
             login_username = st.text_input("用户名", key="login_username")
-            # 密码输入框，type="password"隐藏明文
-            login_password = st.text_input(
-                "密码",
-                type="password",
-                key="login_password",
-            )
-            # 表单提交按钮，铺满整行宽度
+            # 密码输入框，type="password"隐藏输入内容
+            login_password = st.text_input("密码", type="password", key="login_password")
+            # 表单提交按钮，use_container_width占满整行宽度
             login_submitted = st.form_submit_button("登录", use_container_width=True)
 
-        # 用户点击登录按钮后执行逻辑
+        # 判断表单是否点击提交
         if login_submitted:
             try:
-                # 向后端登录接口发送POST请求
+                # 直接调用登录接口，登录接口不需要auth header
                 response = httpx.post(
                     f"{API_BASE_URL}/auth/login",
                     json={
-                        # 去除用户名首尾空格，标准化格式
-                        "username": login_username.strip(),
+                        "username": login_username.strip(), # 去除用户名前后空格
                         "password": login_password,
                     },
-                    timeout=30, # 请求超时30秒
+                    timeout=30,
                 )
-                # 判断接口2xx成功响应
+                # 请求成功
                 if response.is_success:
-                    # 把后端返回的双Token账号信息存入页面缓存
+                    # 保存登录返回token信息
                     save_auth_data(response.json())
-                    # 登录后恢复该账号最近一次历史会话；没有历史时才创建新会话
+                    # 初始化聊天相关session状态
+                    ensure_chat_state()
+                    # 加载最新历史会话
                     restore_latest_thread_or_new()
-                    # 强制页面刷新，跳转聊天主页
+                    # st.rerun()刷新整个streamlit页面
                     st.rerun()
                 else:
-                    # 接口返回4xx/5xx错误，展示格式化错误提示
+                    # 登录失败，展示错误信息
                     st.error(response_error(response))
             except httpx.RequestError as exc:
-                # 捕获网络异常（连不上后端、超时、断网）
+                # 捕获网络异常，打印错误
                 st.error(f"无法连接后端：{exc}")
 
-    # ========== 注册标签页逻辑 ==========
+    # 注册tab代码块
     with register_tab:
-        # 注册表单容器
+        # 注册表单
         with st.form("register_form"):
             register_username = st.text_input("用户名", key="register_username")
-            # 密码输入框
-            register_password = st.text_input(
-                "密码",
-                type="password",
-                key="register_password",
-            )
-            # 二次确认密码输入框，校验两次密码一致
-            confirm_password = st.text_input(
-                "确认密码",
-                type="password",
-                key="confirm_password",
-            )
-            # 注册提交按钮
-            register_submitted = st.form_submit_button(
-                "注册并登录",
-                use_container_width=True,
-            )
+            register_password = st.text_input("密码", type="password", key="register_password")
+            confirm_password = st.text_input("确认密码", type="password", key="confirm_password")
+            register_submitted = st.form_submit_button("注册并登录", use_container_width=True)
 
-        # 用户点击注册执行校验与请求
+        # 点击注册提交按钮
         if register_submitted:
-            # 标准化用户名，去除首尾空格
+            # 去除用户名前后空格
             username = register_username.strip()
-            # 校验1：两次输入密码不一致
+            # 前端校验：两次密码不一致
             if register_password != confirm_password:
                 st.error("两次输入的密码不一致")
-            # 校验2：密码长度不足8位，不符合后端规则
+            # 前端校验密码长度最少8位
             elif len(register_password) < 8:
                 st.error("密码至少需要 8 个字符")
             else:
                 try:
-                    # 调用后端注册接口
+                    # 请求注册接口
                     response = httpx.post(
                         f"{API_BASE_URL}/auth/register",
-                        json={
-                            "username": username,
-                            "password": register_password,
-                        },
+                        json={"username": username, "password": register_password},
                         timeout=30,
                     )
                     if response.is_success:
-                        # 注册成功保存会话缓存，重置对话
+                        # 注册成功直接保存token，自动登录
                         save_auth_data(response.json())
+                        ensure_chat_state()
                         restore_latest_thread_or_new()
                         st.rerun()
                     else:
-                        # 展示后端返回错误（如用户名已存在）
                         st.error(response_error(response))
                 except httpx.RequestError as exc:
-                    # 网络连接异常捕获
                     st.error(f"无法连接后端：{exc}")
 
-# 全局页面基础配置：标题、图标、居中布局
-st.set_page_config(page_title="ScholarFlow", page_icon="S", layout="centered")
 
-# 核心登录状态判断：页面缓存无access_token代表未登录
-if "access_token" not in st.session_state:
-    # 渲染登录注册页面
-    render_login_page()
-    # 终止后续所有聊天页面代码，不再执行下方对话逻辑
-    st.stop()
+def selected_course_id() -> str:
+    """读取当前选中的课程 ID。"""
+    # 从session取出current_course_id，取不到返回空字符串
+    return st.session_state.get("current_course_id", "")
 
-# 已登录状态，初始化对话缓存
-ensure_chat_state()
 
-# 聊天页面主标题
-st.title("ScholarFlow")
+def require_selected_course() -> str | None:
+    """业务 tab 的入口校验：没有选课程就提示用户先去“我的课程”。"""
+    # 获取当前课程id
+    course_id = selected_course_id()
+    # 如果课程id为空，弹出警告，返回None
+    if not course_id:
+        st.warning("请先在“我的课程”里创建或选择一门课程。")
+        return None
+    # 显示当前课程信息给用户
+    st.caption(
+        f"当前课程：{st.session_state.current_course_name} "
+        f"｜角色：{st.session_state.current_course_role or '未知'} "
+        f"｜课程ID：{course_id}"
+    )
+    # 返回有效的course_id，供后续接口调用
+    return course_id
 
-# ========== 侧边栏区域：账号信息、刷新Token、退出登录 ==========
-with st.sidebar:
-    st.subheader("当前账号")
-    # 展示用户唯一ID，代码块样式
-    st.code(st.session_state.user_id, language=None)
-    # 展示短期access令牌过期时间
-    st.caption(f"Access Token 到期：{st.session_state.expires_at}")
-    # 展示长效刷新令牌过期时间
-    st.caption(f"Refresh Token 到期：{st.session_state.refresh_expires_at}")
 
-    # 会话选择区：后端threads表保存“账号拥有哪些线程”，memory库保存“线程里的历史消息”
-    st.divider()
-    st.subheader("历史会话")
-    try:
-        threads_response = httpx.get(
-            f"{API_BASE_URL}/threads",
-            headers=auth_headers(),
-            timeout=30,
-        )
-        if threads_response.is_success:
-            threads = threads_response.json().get("threads", [])
-        else:
-            threads = []
-            st.caption(f"读取历史会话失败：{response_error(threads_response)}")
-    except httpx.RequestError as exc:
-        threads = []
-        st.caption(f"读取历史会话失败：{exc}")
+def render_sidebar() -> None:
+    """左侧栏：账号、历史会话、刷新 Token、退出登录。"""
+    # 进入侧边栏上下文
+    with st.sidebar:
+        st.subheader("当前账号")
+        # 以代码块样式展示user_id
+        st.code(st.session_state.user_id, language=None)
+        # 展示两个token到期时间
+        st.caption(f"Access Token 到期：{st.session_state.expires_at}")
+        st.caption(f"Refresh Token 到期：{st.session_state.refresh_expires_at}")
 
-    if threads:
-        thread_options = [item["thread_id"] for item in threads]
-        thread_map = {item["thread_id"]: item for item in threads}
-        if st.session_state.thread_id not in thread_options:
-            thread_options.insert(0, st.session_state.thread_id)
-        current_index = thread_options.index(st.session_state.thread_id)
-        selected_thread_id = st.selectbox(
-            "选择会话",
-            options=thread_options,
-            index=current_index,
-            format_func=lambda tid: (
-                "当前新会话（尚未保存）"
-                if tid not in thread_map
-                else f"{thread_map[tid].get('title', '新会话')}"
-                     f"（{thread_map[tid].get('history_count', 0)}条）"
-            ),
-        )
-        if selected_thread_id != st.session_state.thread_id:
-            if load_thread_messages(selected_thread_id):
-                st.rerun()
+        # 分割线
+        st.divider()
+        st.subheader("历史会话")
+        try:
+            # 获取用户全部会话列表
+            threads_response = api_get("/threads", timeout=30)
+            if threads_response.is_success:
+                threads = threads_response.json().get("threads", [])
             else:
-                st.error("读取该会话失败，请确认后端服务正常。")
-    else:
-        st.caption("当前账号还没有保存过历史会话。")
+                threads = []
+                st.caption(f"读取历史会话失败：{response_error(threads_response)}")
+        except httpx.RequestError as exc:
+            threads = []
+            st.caption(f"读取历史会话失败：{exc}")
+
+        # 如果存在会话
+        if threads:
+            # 提取全部thread_id组成选项列表
+            thread_options = [item["thread_id"] for item in threads]
+            # 字典映射 thread_id → 会话完整对象
+            thread_map = {item["thread_id"]: item for item in threads}
+            # 如果当前内存中的thread_id不在后端返回列表，插入选项最前面
+            if st.session_state.thread_id not in thread_options:
+                thread_options.insert(0, st.session_state.thread_id)
+            # 获取当前选中会话的下标
+            current_index = thread_options.index(st.session_state.thread_id)
+            # 下拉选择会话组件
+            selected_thread_id = st.selectbox(
+                "选择会话",
+                options=thread_options,
+                index=current_index,
+                # format_func自定义下拉框显示文本
+                format_func=lambda tid: (
+                    "当前新会话（尚未保存）"
+                    if tid not in thread_map
+                    else f"{thread_map[tid].get('title', '新会话')}"
+                         f"（{thread_map[tid].get('history_count', 0)}条）"
+                ),
+            )
+            # 用户切换下拉框选中的会话
+            if selected_thread_id != st.session_state.thread_id:
+                # 加载目标会话消息，成功就刷新页面
+                if load_thread_messages(selected_thread_id):
+                    st.rerun()
+                else:
+                    st.error("读取该会话失败，请确认后端服务正常。")
+        else:
+            # 用户没有任何历史会话
+            st.caption("当前账号还没有保存过历史会话。")
+
+        st.divider()
+        # 新建会话按钮
+        if st.button("新建会话", use_container_width=True):
+            # 生成全新thread_id，清空本地消息，页面刷新
+            st.session_state.thread_id = str(uuid4())
+            st.session_state.messages = []
+            st.rerun()
+
+        # 清空当前会话按钮
+        if st.button("清空当前会话", use_container_width=True):
+            try:
+                # 如果本地有消息，调用后端删除该thread会话
+                if st.session_state.messages:
+                    response = httpx.delete(
+                        f"{API_BASE_URL}/threads/{st.session_state.thread_id}",
+                        headers=auth_headers(),
+                        timeout=30,
+                    )
+                    # 删除接口失败，报错并且停止执行后续代码
+                    if not response.is_success:
+                        st.error(response_error(response))
+                        st.stop()
+                # 删除完成，生成新会话，清空消息，刷新页面
+                st.session_state.thread_id = str(uuid4())
+                st.session_state.messages = []
+                st.rerun()
+            except httpx.RequestError as exc:
+                st.error(f"清空失败，无法连接后端：{exc}")
+
+        # 划分两列布局
+        refresh_column, logout_column = st.columns(2)
+        with refresh_column:
+            # 手动刷新token按钮
+            if st.button("刷新 Token", use_container_width=True):
+                try:
+                    # 请求token刷新接口
+                    response = httpx.post(
+                        f"{API_BASE_URL}/auth/refresh",
+                        json={"refresh_token": st.session_state.refresh_token},
+                        timeout=30,
+                    )
+                    if response.is_success:
+                        # 保存新拿到的token，页面刷新
+                        save_auth_data(response.json())
+                        st.rerun()
+                    else:
+                        st.error(response_error(response))
+                except httpx.RequestError as exc:
+                    st.error(f"刷新失败：{exc}")
+
+        with logout_column:
+            # 退出登录按钮
+            if st.button("退出登录", use_container_width=True):
+                try:
+                    # 请求后端logout接口
+                    response = api_post(
+                        "/auth/logout",
+                        json={"refresh_token": st.session_state.refresh_token},
+                        timeout=30,
+                    )
+                    if response.is_success:
+                        # 清空认证信息
+                        clear_auth_data()
+                        # 清空聊天、课程相关全部session状态
+                        for key in [
+                            "thread_id",
+                            "messages",
+                            "current_course_id",
+                            "current_course_name",
+                            "current_course_role",
+                            "last_task_id",
+                        ]:
+                            st.session_state.pop(key, None)
+                        st.rerun()
+                    else:
+                        st.error(response_error(response))
+                except httpx.RequestError as exc:
+                    st.error(f"退出失败：{exc}")
+
+
+def render_courses_tab() -> None:
+    """Tab 1：创建课程、选择课程。"""
+    st.subheader("我的课程")
+    st.write("这里解决的是：用户先选择业务范围，后面的知识库、问答、出题都只围绕这门课工作。")
+
+    # 创建课程表单
+    with st.form("create_course_form"):
+        course_name = st.text_input("课程名称", placeholder="例如：AI应用开发实战课")
+        description = st.text_area("课程说明", placeholder="这门课包含 RAG、Agent、评估、部署等资料。")
+        submitted = st.form_submit_button("创建课程", use_container_width=True)
+
+    # 点击创建课程按钮
+    if submitted:
+        # 判断课程名称去除空格后是否为空
+        if not course_name.strip():
+            st.error("课程名称不能为空")
+        else:
+            try:
+                # 调用创建课程接口
+                response = api_post(
+                    "/courses",
+                    json={"course_name": course_name.strip(), "description": description.strip()},
+                    timeout=30,
+                )
+                if response.is_success:
+                    course = response.json().get("course", {})
+                    # 创建成功，自动设置为当前课程，角色为teacher
+                    st.session_state.current_course_id = course.get("course_id", "")
+                    st.session_state.current_course_name = course.get("course_name", course_name.strip())
+                    st.session_state.current_course_role = "teacher"
+                    st.success("课程创建成功，并已自动选为当前课程。")
+                    st.rerun()
+                else:
+                    st.error(response_error(response))
+            except httpx.RequestError as exc:
+                st.error(f"创建课程失败：{exc}")
 
     st.divider()
-    st.subheader("上传知识资料")
+    st.markdown("### 选择当前课程")
+    try:
+        # 获取用户所有课程列表
+        response = api_get("/courses", timeout=30)
+        if not response.is_success:
+            st.error(f"读取课程失败：{response_error(response)}")
+            return
+        courses = response.json().get("courses", [])
+    except httpx.RequestError as exc:
+        st.error(f"读取课程失败：{exc}")
+        return
+
+    # 用户没有任何课程
+    if not courses:
+        st.info("你还没有课程。可以先在上方创建课程，或让老师把你的 user_id 添加为课程成员。")
+        return
+
+    # 构造下拉框显示文本数组
+    labels = [
+        f"{course.get('course_name', '未命名课程')}｜{course.get('role_in_course', 'unknown')}｜{course.get('course_id', '')}"
+        for course in courses
+    ]
+    default_index = 0
+    current_id = selected_course_id()
+    # 循环找到当前选中课程对应的数组下标
+    for index, course in enumerate(courses):
+        if course.get("course_id") == current_id:
+            default_index = index
+            break
+
+    # 下拉选择课程组件，options传下标数字
+    selected_index = st.selectbox(
+        "选择当前课程",
+        options=list(range(len(courses))),
+        index=default_index,
+        format_func=lambda index: labels[index],
+    )
+    # 根据选中下标取出课程对象
+    selected = courses[selected_index]
+    # 更新session，切换当前课程
+    st.session_state.current_course_id = selected.get("course_id", "")
+    st.session_state.current_course_name = selected.get("course_name", "")
+    st.session_state.current_course_role = selected.get("role_in_course", "")
+
+    st.success(f"当前课程：{st.session_state.current_course_name}")
+    # dataframe表格展示全部课程
+    st.dataframe(courses, use_container_width=True)
+
+
+
+def render_documents_tab() -> None:
+    """Tab 2：上传课程资料、查看当前课程知识库文档列表。"""
+    st.subheader("课程知识库")
+    course_id = require_selected_course()
+    if not course_id:
+        return
+
+    st.markdown("### 上传课程资料")
+    st.caption("老师上传 Markdown、TXT 或 PDF 后，后端会返回 task_id，并在后台异步完成解析、切块、向量入库。")
     uploaded_file = st.file_uploader(
-        "选择 PDF、TXT 或 Markdown",
+        "选择课程资料文件",
         type=["pdf", "txt", "md"],
         accept_multiple_files=False,
+        key=f"course_upload_{course_id}",
     )
     if st.button(
-        "上传并入库",
+        "上传并创建入库任务",
         disabled=uploaded_file is None,
         use_container_width=True,
     ):
         try:
-            with st.spinner("正在解析、切片和向量化..."):
+            with st.spinner("正在上传文件并创建后台任务..."):
                 response = httpx.post(
-                    f"{API_BASE_URL}/documents/upload",
+                    f"{API_BASE_URL}/courses/{course_id}/documents/upload-async",
                     headers=auth_headers(),
                     files={
                         "file": (
@@ -331,164 +522,353 @@ with st.sidebar:
                             uploaded_file.type or "application/octet-stream",
                         )
                     },
-                    timeout=300,
+                    timeout=120,
                 )
             if response.is_success:
-                result = response.json()
-                st.success(
-                    f"{result['filename']} 已写入 "
-                    f"{result['chunk_count']} 个片段"
-                )
+                data = response.json()
+                st.session_state.last_task_id = data.get("task_id", "")
+                st.success(f"上传成功，任务ID：{st.session_state.last_task_id}")
+                st.info("接下来去“上传任务”tab 查询任务进度；任务 success 后再回来刷新课程知识库列表。")
             else:
                 st.error(response_error(response))
         except httpx.RequestError as exc:
             st.error(f"上传失败，无法连接后端：{exc}")
 
-    # 侧边栏创建两列并排按钮：刷新Token、退出登录
-    refresh_column, logout_column = st.columns(2)
+    st.divider()
+    st.markdown("### 当前课程文档列表")
+    try:
+        response = api_get(f"/courses/{course_id}/documents", timeout=30)
+        if response.is_success:
+            documents = response.json().get("documents", [])
+            if documents:
+                st.dataframe(documents, use_container_width=True)
+            else:
+                st.warning("这门课程暂时没有入库文档。请先上传课程资料。")
+        else:
+            st.error(response_error(response))
+    except httpx.RequestError as exc:
+        st.error(f"读取课程知识库失败：{exc}")
 
-    # 刷新Token按钮逻辑
-    with refresh_column:
-        if st.button("刷新 Token", use_container_width=True):
-            try:
-                # 调用后端刷新双Token接口，传入本地refresh_token
-                response = httpx.post(
-                    f"{API_BASE_URL}/auth/refresh",
-                    json={
-                        "refresh_token": st.session_state.refresh_token,
-                    },
-                    timeout=30,
-                )
-                if response.is_success:
-                    # 后端返回全新双Token，覆盖页面全部认证缓存
-                    save_auth_data(response.json())
-                    # 页面刷新，新令牌立即生效
-                    st.rerun()
-                else:
-                    # 刷新失败展示错误（refresh_token过期/注销）
-                    st.error(response_error(response))
-            except httpx.RequestError as exc:
-                st.error(f"刷新失败，无法连接后端：{exc}")
 
-    # 退出登录按钮逻辑
-    with logout_column:
-        if st.button("退出登录", use_container_width=True):
-            try:
-                # 调用后端登出接口，同时作废access与refresh令牌
-                response = httpx.post(
-                    f"{API_BASE_URL}/auth/logout",
-                    headers=auth_headers(), # 携带当前有效access鉴权
-                    json={
-                        "refresh_token": st.session_state.refresh_token,
-                    },
-                    timeout=30,
-                )
-                if response.is_success:
-                    # 清空页面所有登录认证缓存
-                    clear_auth_data()
-                    # 清空对话相关缓存
-                    st.session_state.pop("thread_id", None)
-                    st.session_state.pop("messages", None)
-                    # 页面刷新，自动跳转登录页
-                    st.rerun()
-                else:
-                    st.error(response_error(response))
-            except httpx.RequestError as exc:
-                st.error(f"退出失败，无法连接后端：{exc}")
+def render_qa_tab() -> None:
+    """Tab 3：课程级 AI 问答。"""
+    st.subheader("AI 问答")
+    course_id = require_selected_course()
+    if not course_id:
+        return
 
-# 页面顶部两栏按钮：清空当前会话 / 新建会话
-clear_column, new_column = st.columns(2)
+    # 先渲染历史消息，再渲染输入框。
+    # 用户提交后只写入 session_state 并 st.rerun，避免新消息跑到输入框下面。
+    for message in st.session_state.messages:
+        with st.chat_message(message["role"]):
+            st.markdown(message["content"])
 
-# 清空当前会话按钮逻辑
-with clear_column:
-    if st.button("清空当前会话", use_container_width=True):
-        try:
-            # 仅当存在聊天记录时，调用后端删除当前thread对话历史
-            if st.session_state.messages:
-                response = httpx.delete(
-                    f"{API_BASE_URL}/threads/{st.session_state.thread_id}",
-                    headers=auth_headers(),
-                    timeout=30,
-                )
-                # 删除接口返回错误，提示用户并终止逻辑
-                if not response.is_success:
-                    st.error(response_error(response))
-                    st.stop()
+    question = st.chat_input("输入课程相关问题")
+    if not question:
+        return
 
-            # 本地生成全新对话ID，清空聊天记录，页面刷新重置对话
-            st.session_state.thread_id = str(uuid4())
-            st.session_state.messages = []
+    st.session_state.messages.append({"role": "user", "content": question})
+    try:
+        with st.spinner("正在检索当前课程知识库并生成回答..."):
+            response = api_post(
+                f"/courses/{course_id}/ask",
+                json={"question": question, "thread_id": st.session_state.thread_id},
+                timeout=180,
+            )
+        if not response.is_success:
+            st.session_state.messages.append(
+                {"role": "assistant", "content": f"请求失败：{response_error(response)}"}
+            )
             st.rerun()
-        except httpx.RequestError as exc:
-            st.error(f"清空失败，无法连接后端：{exc}")
 
-# 新建会话按钮逻辑
-with new_column:
-    if st.button("新建会话", use_container_width=True):
-        # 仅本地切换全新thread_id，不删除后端历史对话记录
-        st.session_state.thread_id = str(uuid4())
-        st.session_state.messages = []
+        result = response.json()
+        answer_text = str(result.get("answer", result)) if isinstance(result, dict) else str(result)
+        citations = result.get("citations", []) if isinstance(result, dict) else []
+        if citations:
+            citation_lines = ["\n\n#### 引用来源"]
+            for citation in citations:
+                source = citation.get("source_name", citation.get("source", "未知来源"))
+                locator = citation.get("locator", "")
+                quote = citation.get("quote", citation.get("content", ""))
+                citation_lines.append(f"- {source} {locator}: {quote}")
+            answer_text += "\n".join(citation_lines)
+
+        st.session_state.messages.append({"role": "assistant", "content": answer_text})
+        st.rerun()
+    except httpx.RequestError as exc:
+        st.session_state.messages.append(
+            {"role": "assistant", "content": f"提问失败，无法连接后端：{exc}"}
+        )
         st.rerun()
 
-# 循环渲染历史聊天消息，用户/助手对话气泡
-for message in st.session_state.messages:
-    # 根据消息角色渲染对应聊天框
-    with st.chat_message(message["role"]):
-        st.markdown(message["content"])
+def render_learning_plan_tab() -> None:
+    """Tab 4：学习计划 Agent。"""
+    st.subheader("学习计划")
+    course_id = require_selected_course()
+    if not course_id:
+        return
 
-# 底部聊天输入框，接收用户提问
-question = st.chat_input("输入问题")
+    # 生成学习计划表单
+    with st.form("learning_plan_form"):
+        goal = st.text_area("学习目标", placeholder="例如：7天内掌握本课程的 RAG 项目开发流程")
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            days = st.number_input("计划天数", min_value=1, max_value=30, value=7)
+        with col2:
+            daily_minutes = st.number_input("每天学习分钟数", min_value=10, max_value=600, value=60)
+        with col3:
+            difficulty = st.selectbox("难度", ["beginner", "intermediate", "advanced"])
+        submitted = st.form_submit_button("生成学习计划", use_container_width=True)
 
-# 用户输入提问后执行RAG问答逻辑
-if question:
-    # 将用户问题存入本地聊天记录缓存
-    st.session_state.messages.append(
-        {"role": "user", "content": question}
-    )
-
-    # 渲染用户提问气泡
-    with st.chat_message("user"):
-        st.markdown(question)
-
-    # 助手回答气泡容器
-    with st.chat_message("assistant"):
+    # 用户点击生成计划
+    if submitted:
+        if not goal.strip():
+            st.error("学习目标不能为空")
+            return
         try:
-            # 加载中转圈提示
-            with st.spinner("正在检索资料..."):
-                # 向后端RAG问答接口发送请求，携带鉴权头、对话ID、用户问题
-                response = httpx.post(
-                    f"{API_BASE_URL}/ask",
-                    headers=auth_headers(),
-                    json={
-                        "question": question,
-                        "thread_id": st.session_state.thread_id,
-                    },
-                    timeout=180, # 问答接口超时延长至3分钟，适配长文档检索
-                )
-
-            # 接口非2xx成功状态，展示错误并终止渲染回答
-            if not response.is_success:
-                st.error(response_error(response))
-                st.stop()
-
-            # 解析后端返回问答结果JSON
-            result = response.json()
-            # 取出大模型生成的回答文本
-            answer_text = result["answer"]
-            # 页面渲染回答内容
-            st.markdown(answer_text)
-
-            # 循环渲染引用资料片段
-            for citation in result.get("citations", []):
-                st.caption(
-                    f"{citation['source_name']} {citation.get('locator', '')}: "
-                    f"{citation['quote']}"
-                )
-
-            # 将助手回答存入本地聊天缓存，刷新页面保留对话历史
-            st.session_state.messages.append(
-                {"role": "assistant", "content": answer_text}
+            # 请求学习计划agent接口
+            response = api_post(
+                f"/courses/{course_id}/agents/learning-plan",
+                json={
+                    "goal": goal.strip(),
+                    "days": int(days),
+                    "difficulty": difficulty,
+                    "daily_minutes": int(daily_minutes),
+                },
+                timeout=180,
             )
+            if response.is_success:
+                data = response.json()
+                st.success("学习计划生成成功")
+                # 循环渲染每一天学习计划，expander折叠面板
+                for day in data.get("days", []):
+                    with st.expander(f"第 {day.get('day')} 天：{day.get('topic', '')}", expanded=True):
+                        for task in day.get("tasks", []):
+                            st.write(f"- {task}")
+                        if day.get("expected_output"):
+                            st.markdown(f"**预期产出：** {day.get('expected_output')}")
+            else:
+                st.error(response_error(response))
         except httpx.RequestError as exc:
-            # 问答网络异常捕获提示
-            st.error(f"提问失败，无法连接后端：{exc}")
+            st.error(f"生成学习计划失败：{exc}")
+
+
+def render_quiz_tab() -> None:
+    """Tab 5：自动出题 Agent。"""
+    st.subheader("自动出题")
+    course_id = require_selected_course()
+    if not course_id:
+        return
+
+    # 出题表单
+    with st.form("quiz_form"):
+        topic = st.text_input("出题主题", placeholder="例如：RAG 检索增强生成")
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            question_count = st.number_input("题目数量", min_value=1, max_value=20, value=5)
+        with col2:
+            question_type = st.selectbox("题型", ["single_choice", "true_false", "short_answer", "interview"])
+        with col3:
+            difficulty = st.selectbox("难度", ["easy", "medium", "hard"])
+        submitted = st.form_submit_button("生成题目", use_container_width=True)
+
+    # 点击生成题目
+    if submitted:
+        if not topic.strip():
+            st.error("出题主题不能为空")
+            return
+        try:
+            # 调用出题agent接口
+            response = api_post(
+                f"/courses/{course_id}/agents/quiz",
+                json={
+                    "topic": topic.strip(),
+                    "question_count": int(question_count),
+                    "question_type": question_type,
+                    "difficulty": difficulty,
+                },
+                timeout=180,
+            )
+            if response.is_success:
+                data = response.json()
+                st.success("题目生成成功")
+                # 遍历每一道题目，折叠面板展示
+                for index, item in enumerate(data.get("items", []), start=1):
+                    with st.expander(f"第 {index} 题：{item.get('question', '')}", expanded=True):
+                        options = item.get("options", [])
+                        for option in options:
+                            st.write(f"- {option}")
+                        st.markdown(f"**参考答案：** {item.get('answer', '')}")
+                        st.markdown(f"**解析：** {item.get('explanation', '')}")
+            else:
+                st.error(response_error(response))
+        except httpx.RequestError as exc:
+            st.error(f"生成题目失败：{exc}")
+
+
+def render_retrieval_debug_tab() -> None:
+    """Tab 6：教师查看检索召回过程。"""
+    st.subheader("检索可视化")
+    course_id = require_selected_course()
+    if not course_id:
+        return
+
+    st.caption("这个页面调用 POST /courses/{course_id}/retrieval/debug。后端要求课程教师访问，学生账号返回 403 是正常权限控制。")
+    query = st.text_input("输入要调试的检索问题", placeholder="例如：RAG 的核心流程是什么？")
+    # 点击查看召回结果按钮
+    if st.button("查看召回结果", use_container_width=True):
+        if not query.strip():
+            st.error("检索问题不能为空")
+            return
+        try:
+            # 请求检索调试接口
+            response = api_post(
+                f"/courses/{course_id}/retrieval/debug",
+                json={"question": query.strip(), "thread_id": st.session_state.thread_id},
+                timeout=60,
+            )
+            if response.is_success:
+                data = response.json()
+                if isinstance(data, dict):
+                    # 多key兼容取召回文档数组
+                    rows = data.get("items") or data.get("results") or data.get("documents") or []
+                    if rows:
+                        st.dataframe(rows, use_container_width=True)
+                    st.json(data)
+                else:
+                    st.write(data)
+            else:
+                st.error(response_error(response))
+        except httpx.RequestError as exc:
+            st.error(f"检索调试失败：{exc}")
+
+
+
+def render_tasks_tab() -> None:
+    """Tab 7：查看课程异步上传任务，并支持按 task_id 查询。"""
+    st.subheader("上传任务")
+    course_id = require_selected_course()
+    if not course_id:
+        return
+
+    st.markdown("### 当前课程最近任务")
+    try:
+        response = api_get(f"/courses/{course_id}/tasks", timeout=30)
+        if response.is_success:
+            tasks = response.json().get("tasks", [])
+            if tasks:
+                st.dataframe(tasks, use_container_width=True)
+            else:
+                st.info("当前课程还没有上传任务。")
+        else:
+            st.error(response_error(response))
+    except httpx.RequestError as exc:
+        st.error(f"读取课程任务失败：{exc}")
+
+    st.divider()
+    st.markdown("### 按任务ID查询")
+    task_id = st.text_input(
+        "??ID",
+        value=st.session_state.get("last_task_id", ""),
+        placeholder="粘贴上传接口返回的 task_id",
+    )
+    if st.button("查询任务状态", use_container_width=True):
+        if not task_id.strip():
+            st.error("请先输入 task_id")
+            return
+        st.session_state.last_task_id = task_id.strip()
+        try:
+            response = api_get(f"/tasks/{task_id.strip()}", timeout=30)
+            if response.is_success:
+                st.json(response.json().get("task", response.json()))
+            else:
+                st.error(response_error(response))
+        except httpx.RequestError as exc:
+            st.error(f"查询任务失败：{exc}")
+
+def render_analytics_tab() -> None:
+    """Tab 8：教师查看课程问答分析。"""
+    st.subheader("问答分析")
+    course_id = require_selected_course()
+    if not course_id:
+        return
+
+    st.caption("这个页面调用教师专用 analytics 接口；学生账号看到 403 代表权限控制生效。")
+    # 刷新分析数据按钮
+    if st.button("刷新分析数据", use_container_width=True):
+        # 定义多个分析接口（标题，接口路径）元组列表
+        endpoints = [
+            ("高频问题", f"/courses/{course_id}/analytics/top-questions"),
+            ("无引用问题", f"/courses/{course_id}/analytics/no-citation"),
+            ("低质量问题", f"/courses/{course_id}/analytics/low-quality"),
+        ]
+        # 循环依次请求每个分析接口
+        for title, path in endpoints:
+            st.markdown(f"### {title}")
+            try:
+                response = api_get(path, timeout=30)
+                if response.is_success:
+                    items = response.json().get("items", [])
+                    if items:
+                        st.dataframe(items, use_container_width=True)
+                    else:
+                        st.info("暂无数据")
+                else:
+                    st.error(response_error(response))
+            except httpx.RequestError as exc:
+                st.error(f"读取{title}失败：{exc}")
+
+
+# streamlit全局页面配置：页面标题、图标、宽布局
+st.set_page_config(page_title="ScholarFlow｜AI课程知识库与学习助手", page_icon="S", layout="wide")
+
+# 判断未登录：session不存在access_token，渲染登录页面，st.stop终止后续全部代码
+if "access_token" not in st.session_state:
+    render_login_page()
+    st.stop()
+
+# 已经登录，初始化聊天相关session状态
+ensure_chat_state()
+# 渲染左侧侧边栏
+render_sidebar()
+
+# 主页面大标题
+st.title("ScholarFlow｜AI课程知识库与学习助手")
+st.caption("面向课程资料、培训文档和项目知识库的带引用问答、学习计划、自动出题与评估诊断系统。")
+
+# 获取当前课程名称
+current_course = st.session_state.get("current_course_name")
+if current_course:
+    st.info(f"当前已选择课程：{current_course}（{st.session_state.current_course_role or '未知角色'}）")
+else:
+    st.info("当前还没有选择课程，请先进入“我的课程”创建或选择课程。")
+
+# 创建8个tab标签页
+tabs = st.tabs([
+    "我的课程",
+    "课程知识库",
+    "AI 问答",
+    "学习计划",
+    "自动出题",
+    "检索可视化",
+    "上传任务",
+    "问答分析",
+])
+
+# 每个tab绑定对应的渲染函数
+with tabs[0]:
+    render_courses_tab()
+with tabs[1]:
+    render_documents_tab()
+with tabs[2]:
+    render_qa_tab()
+with tabs[3]:
+    render_learning_plan_tab()
+with tabs[4]:
+    render_quiz_tab()
+with tabs[5]:
+    render_retrieval_debug_tab()
+with tabs[6]:
+    render_tasks_tab()
+with tabs[7]:
+    render_analytics_tab()

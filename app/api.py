@@ -20,6 +20,8 @@ from app.schemas import (
     RefreshTokenRequest,
     RegisterRequest,
     SessionResponse,
+    CourseCreateRequest,
+    CourseMemberAddRequest,
 )
 # 导入全局认证权限存储单例（用户登录、线程归属校验）
 from app.security import auth_store
@@ -48,6 +50,28 @@ from app.rate_limit import (
 from app.runtime_metrics import runtime_metrics
 # 导入服务健康就绪检查函数，用于接口校验数据库、向量目录等存储资源是否正常就绪
 from app.health import readiness_report
+# 从 app 包下 courses 模块里的 store 文件，导入全局单例对象 course_store
+from app.courses.store import course_store
+# 从 app.knowledge.library 模块导入全局单例对象 knowledge_library
+from app.knowledge.library import knowledge_library
+# 导入FastAPI后台任务组件：可以把函数丢到接口返回之后异步执行，不用额外写线程代码
+from fastapi import BackgroundTasks
+# 导入任务存储单例，用来创建 ingestion任务、读写任务数据库
+from app.tasks.store import task_store
+# 导入文档处理异步任务函数，真正执行文档解析、切块、向量入库逻辑
+from app.tasks.ingestion import run_ingestion_task
+# 导入调试检索工具函数，输出RAG召回的完整中间结果，用于排查检索效果
+from app.retrieval.debug import debug_retrieval
+# 导入Pydantic请求模型：接收前端提交生成学习计划的请求参数(goal、days、difficulty、daily_minutes)
+from app.schemas import LearningPlanRequest
+# 导入业务函数：基于课程知识库RAG+大模型生成结构化学习计划的核心逻辑
+from app.agents.learning_plan import generate_learning_plan
+# 导入Pydantic请求模型，接收前端生成测验题的入参（topic、question_count、question_type、difficulty）
+from app.schemas import QuizRequest
+# 导入出题业务函数，内部完成RAG检索+大模型结构化输出，返回QuizResponse对象
+from app.agents.quiz import generate_quiz
+# 从分析模块的qa_events文件导入全局单例对象 qa_event_store
+from app.analytics.qa_events import qa_event_store
 
 
 
@@ -369,6 +393,463 @@ def logout_account(
     auth_store.revoke_refresh_token(request.refresh_token)
     # 返回登出成功标识
     return {"logged_out": True}
+
+
+# 创建课程接口 POST /courses
+@app.post("/courses")
+def create_course(
+    # 请求体，Pydantic模型自动校验前端传入JSON
+    request: CourseCreateRequest,
+    # Depends 依赖注入；current_session校验登录，返回元组 (user_id, token)
+    session: tuple[str, str] = Depends(current_session),
+):
+    # 解包会话元组：取出登录用户id，下划线代表token这里不需要使用
+    user_id, _ = session
+    # 调用存储层方法创建课程，当前登录用户作为课程创建老师
+    course = course_store.create_course(
+        course_name=request.course_name,
+        description=request.description,
+        owner_teacher_id=user_id,
+    )
+    # dataclass对象转字典返回给前端
+    return {"course": course.__dict__}
+
+
+# 获取当前用户所有课程 GET /courses
+@app.get("/courses")
+def list_courses(session: tuple[str, str] = Depends(current_session)):
+    # 解包登录会话，拿到当前登录用户ID
+    user_id, _ = session
+    # 查询该用户加入的全部课程，直接返回字典列表给前端
+    return {"courses": course_store.list_user_courses(user_id)}
+
+
+# 获取单门课程详情 GET /courses/{course_id}
+@app.get("/courses/{course_id}")
+def get_course(course_id: str, session: tuple[str, str] = Depends(current_session)):
+    user_id, _ = session
+    try:
+        # 权限校验：课程必须存在 && 当前用户是课程成员（老师/学生均可访问）
+        course_store.require_course_access(course_id, user_id)
+    except LookupError as exc:
+        # 捕获“课程不存在”异常，抛出404接口错误，from exc保留原始异常栈
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except PermissionError as exc:
+        # 捕获无权限异常，抛出403禁止访问
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    # 校验通过，返回课程详情
+    return {"course": course_store.get_course(course_id)}
+
+
+# 给课程添加成员 POST /courses/{course_id}/members
+@app.post("/courses/{course_id}/members")
+def add_course_member(
+    # 路径参数：目标课程id
+    course_id: str,
+    # 请求体：待添加的用户id、角色
+    request: CourseMemberAddRequest,
+    # 登录会话依赖
+    session: tuple[str, str] = Depends(current_session),
+):
+    user_id, _ = session
+    try:
+        # 权限校验：执行操作的人必须是这门课的老师
+        course_store.require_course_teacher(course_id, user_id)
+        # 调用存储层添加成员，支持新增/覆盖角色
+        course_store.add_member(course_id, request.user_id, request.role_in_course)
+    except LookupError as exc:
+        # 课程不存在返回404
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except PermissionError as exc:
+        # 不是老师返回403权限不足
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    return {"status": "ok"}
+
+
+# 获取课程全部成员列表 GET /courses/{course_id}/members
+@app.get("/courses/{course_id}/members")
+def list_course_members(course_id: str, session: tuple[str, str] = Depends(current_session)):
+    user_id, _ = session
+    try:
+        # 权限校验：只有课程老师才可以查看成员列表
+        course_store.require_course_teacher(course_id, user_id)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    # 查询并返回课程所有成员
+    return {"members": course_store.list_members(course_id)}
+
+# 获取课程下全部文档列表接口 GET /courses/{course_id}/documents
+@app.get("/courses/{course_id}/documents")
+def list_course_documents(course_id: str, session: tuple[str, str] = Depends(current_session)):
+    # 从登录会话元组解包，拿到当前登录用户ID，下划线表示token本接口不使用
+    user_id, _ = session
+    try:
+        # 权限校验：课程必须存在，当前用户必须是该课程成员（老师/学生均可查看文档列表）
+        course_store.require_course_access(course_id, user_id)
+    except LookupError as exc:
+        # 捕获课程不存在异常，返回HTTP 404，from exc保留原始异常堆栈信息，方便日志排查
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except PermissionError as exc:
+        # 捕获没有课程访问权限异常，返回HTTP 403禁止访问
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    # 校验通过，调用知识库存储层，查询该课程所有文档，返回给前端
+    return {"documents": knowledge_library.list_course_documents(course_id)}
+
+
+@app.post("/courses/{course_id}/documents/upload-async")
+async def upload_course_document_async(
+    course_id: str,
+    background_tasks: BackgroundTasks,
+    file: UploadFile = File(...),
+    session: tuple[str, str] = Depends(current_session),
+):
+    """
+    课程级异步上传接口。
+
+    作用：
+    1. 校验当前用户必须是课程老师。
+    2. 把上传文件保存到 data/raw/uploads/courses/{course_id}/。
+    3. 在 documents.sqlite 里登记一条 processing 文档记录。
+    4. 在 tasks.sqlite 里创建一条 pending 后台任务。
+    5. 把真正耗时的解析、切块、embedding、Chroma 入库放到后台执行。
+    """
+    user_id, _ = session
+    try:
+        course_store.require_course_teacher(course_id, user_id)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+
+    filename = safe_upload_name(file.filename or "")
+    suffix = Path(filename).suffix.lower()
+    if suffix not in ALLOWED_UPLOAD_SUFFIXES:
+        raise HTTPException(
+            status_code=400,
+            detail="只支持 PDF、TXT 和 Markdown 文件",
+        )
+
+    content = await file.read(MAX_UPLOAD_BYTES + 1)
+    if len(content) > MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=413, detail="文件不能超过 10 MB")
+    if not content:
+        raise HTTPException(status_code=400, detail="不能上传空文件")
+
+    upload_dir = UPLOAD_DIR / "courses" / course_id
+    upload_dir.mkdir(parents=True, exist_ok=True)
+    saved_name = f"{uuid4().hex}_{filename}"
+    target = upload_dir / saved_name
+    target.write_bytes(content)
+
+    document = knowledge_library.register_document(
+        course_id=course_id,
+        uploader_user_id=user_id,
+        original_name=filename,
+        saved_name=saved_name,
+        file_path=str(target),
+        file_type=suffix.lstrip("."),
+        file_size=len(content),
+        status="processing",
+    )
+    task_id = task_store.create_task(
+        course_id=course_id,
+        source_id=document.source_id,
+        owner_user_id=user_id,
+    )
+
+    background_tasks.add_task(
+        run_ingestion_task,
+        task_id,
+        document.source_id,
+        str(target),
+        course_id,
+    )
+
+    return {
+        "task_id": task_id,
+        "source_id": document.source_id,
+        "filename": document.original_name,
+        "status": "pending",
+        "message": "文件已上传，后台正在解析、切块和向量入库",
+    }
+
+
+@app.get("/courses/{course_id}/tasks")
+def list_course_tasks(course_id: str, session: tuple[str, str] = Depends(current_session)):
+    """
+    查询课程下全部上传/入库任务。
+    课程成员可查看，方便前端上传任务页展示最近任务。
+    """
+    user_id, _ = session
+    try:
+        course_store.require_course_access(course_id, user_id)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    return {"tasks": task_store.list_course_tasks(course_id)}
+
+@app.get("/tasks/{task_id}")
+def get_task(task_id: str, session: tuple[str, str] = Depends(current_session)):
+    """
+    查询任务详情接口
+    :param task_id: 路径参数，要查询的任务UUID
+    :param session: 依赖注入，拿到当前登录用户 (user_id, token)，校验用户已登录
+    """
+    # 根据task_id从sqlite查询任务记录，会自动把result_json解析为result字典
+    task = task_store.get_task(task_id)
+    # 如果查询结果为空，代表任务id不存在，返回404
+    if not task:
+        raise HTTPException(status_code=404, detail="任务不存在")
+    # 将任务字典返回给前端，前端拿到status/progress/message/error做进度展示
+    return {"task": task}
+
+@app.post("/courses/{course_id}/ask")
+def ask_course(
+    course_id: str,                          # 路径参数：要提问的课程ID
+    request: AskRequest,                     # 请求体，Pydantic模型，里面包含question、thread_id等字段
+    session: tuple[str, str] = Depends(current_session),  # 依赖注入，校验登录，返回(user_id,token)
+):
+    """
+    课程知识库问答接口
+    作用：在指定课程的知识库中执行RAG+LangGraph Agent问答，绑定会话线程
+    """
+    # 解包session，拿到当前登录用户id
+    user_id, _ = session
+
+    try:
+        # 权限校验：校验该用户是否有权访问这个课程
+        # 内部逻辑：用户要么是课程老师，要么是课程学生；无权限直接抛异常
+        course_store.require_course_access(course_id, user_id)
+    except LookupError as exc:
+        # 捕获异常：course_id不存在，返回404
+        # from exc：保留原始异常堆栈，方便后台日志排查
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except PermissionError as exc:
+        # 捕获异常：课程存在，但用户没有访问权限，返回403禁止访问
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+
+    # 调用LangGraph工作流memory_workflow
+    # 输入state：把用户问题、当前课程id传入graph状态
+    # course_id会向下传递给内部search检索函数，实现只检索本课程知识库
+    result = memory_workflow.invoke(
+        {"question": request.question, "course_id": course_id},
+        # LangGraph会话配置：thread_id对应对话会话，用来维护记忆、多轮上下文
+        config={"configurable": {"thread_id": request.thread_id}},
+    )
+    # LangGraph 返回的 result["answer"] 在你的项目里是 ResearchAnswer 对象。
+    # SQLite 只能保存 str/int/float/bytes/None，不能直接保存 Pydantic 对象。
+    # 所以这里必须先把 ResearchAnswer 转成普通 dict，再取出 answer 字符串和 citations 列表。
+    answer_obj = result.get("answer") if isinstance(result, dict) else result
+    if hasattr(answer_obj, "model_dump"):
+        answer_payload = answer_obj.model_dump()
+    elif isinstance(answer_obj, dict):
+        answer_payload = answer_obj
+    else:
+        answer_payload = {
+            "answer": str(answer_obj),
+            "citations": [],
+            "confidence": 0,
+            "missing_information": [],
+        }
+
+    # answer_text 是真正要写入 qa_events.answer TEXT 字段的字符串。
+    # 不能把 ResearchAnswer 对象直接传给 SQLite，否则会报：
+    # sqlite3.ProgrammingError: type 'ResearchAnswer' is not supported
+    answer_text = str(answer_payload.get("answer", ""))
+    citations = answer_payload.get("citations", []) or []
+
+    # 调用埋点存储，把本次问答事件写入sqlite qa_events日志表
+    qa_event_store.record_event(
+        course_id=course_id,  # 当前课程ID
+        user_id=user_id,  # 当前登录用户ID
+        thread_id=request.thread_id,  # 对话会话ID，LangGraph记忆的线程id
+        question=request.question,  # 用户原始提问
+        answer=answer_text,  # 大模型输出的回答文本，必须是字符串，不能是 ResearchAnswer 对象
+        citation_count=len(citations),  # 统计引用来源数量，计算列表长度存入数据库
+    )
+
+    # 课程级问答完成日志：用于后续排查“哪门课程、哪个用户、哪个线程、引用数量多少”
+    # 这不是业务数据入库，业务数据已经由 qa_event_store.record_event 写入 SQLite。
+    # logger.info 只是写运行日志，方便线上问题定位和 Diagnosis Agent 后续读取分析。
+    logger.info(
+        "course.ask.completed",
+        extra={
+            "event": "course.ask.completed",
+            "details": {
+                "course_id": course_id,
+                "user_id": user_id,
+                "thread_id": request.thread_id,
+                "citation_count": len(citations),
+            },
+        },
+    )
+
+    # 只把前端真正需要的结构化回答返回出去。
+    # 不直接 return result，是因为 result 里面可能包含 LangChain Document、Pydantic 对象等复杂类型，
+    # 对前端没有必要，也更容易触发 JSON 序列化问题。
+    return answer_payload
+
+@app.get("/courses/{course_id}/analytics/top-questions")
+def top_questions(course_id: str, session: tuple[str, str] = Depends(current_session)):
+    """
+    获取课程高频提问统计接口
+    仅课程教师有权限访问，返回该课程被提问次数最多的问题列表
+    """
+    # 解包会话，获取登录用户ID；_丢弃token
+    user_id, _ = session
+    try:
+        # 权限校验：校验当前用户必须是该课程的教师，学生不允许访问分析数据
+        course_store.require_course_teacher(course_id, user_id)
+    except LookupError as exc:
+        # 捕获异常：course_id对应的课程不存在，返回404；from exc保留原始异常堆栈用于日志
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except PermissionError as exc:
+        # 捕获异常：课程存在，但用户不是教师，没有查看分析数据的权限，返回403
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    # 调用存储层方法查询高频问题，包装成{"items": [...]}返回给前端
+    return {"items": qa_event_store.top_questions(course_id)}
+
+
+@app.get("/courses/{course_id}/analytics/no-citation")
+def no_citation_questions(course_id: str, session: tuple[str, str] = Depends(current_session)):
+    """
+    获取零引用问答记录接口
+    查询回答没有携带任何知识库引用的问答，用于排查RAG幻觉、召回失效问题
+    仅课程教师可访问
+    """
+    user_id, _ = session
+    try:
+        # 校验用户身份必须为本课程教师
+        course_store.require_course_teacher(course_id, user_id)
+    except LookupError as exc:
+        # 课程不存在 → 404
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except PermissionError as exc:
+        # 用户权限不足 →403
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    # 查询citation_count=0的问答事件，返回给前端
+    return {"items": qa_event_store.no_citation_questions(course_id)}
+
+
+@app.get("/courses/{course_id}/analytics/low-quality")
+def low_quality_questions(course_id: str, session: tuple[str, str] = Depends(current_session)):
+    """
+    获取低质量问答记录接口
+    查询评估不通过 / 质量分数低 / 存在报错的问答样本，帮助老师定位RAG系统问题
+    仅课程教师可访问
+    """
+    user_id, _ = session
+    try:
+        # 校验当前登录用户是该课程教师
+        course_store.require_course_teacher(course_id, user_id)
+    except LookupError as exc:
+        # 课程找不到返回404
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except PermissionError as exc:
+        # 不是教师，禁止访问分析数据返回403
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    # 查询低质量问答事件，包装返回
+    return {"items": qa_event_store.low_quality_questions(course_id)}
+
+
+
+@app.post("/courses/{course_id}/retrieval/debug")
+def retrieval_debug(
+    course_id: str,                          # 路径参数：目标课程ID
+    request: AskRequest,                     # 请求体模型，内部携带question、thread_id字段
+    session: tuple[str, str] = Depends(current_session), # 依赖注入，校验用户登录状态，返回(user_id, token)
+):
+    """
+    【教师专用调试接口】查看RAG检索召回结果
+    只允许课程教师调用，用来排查知识库召回、分数、元数据、课程过滤是否正常
+    """
+    # 解包会话，拿到当前登录用户ID
+    user_id, _ = session
+
+    try:
+        # 权限校验：要求当前用户必须是该课程的教师；普通学生禁止访问该调试接口
+        course_store.require_course_teacher(course_id, user_id)
+    except LookupError as exc:
+        # 捕获异常：course_id课程不存在，返回404
+        # from exc：保留原始异常堆栈，方便后端日志排查定位问题
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except PermissionError as exc:
+        # 捕获异常：课程存在，但当前用户不是课程教师，无调试权限，返回403
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+
+    # 调用调试函数，传入用户提问与课程id，返回格式化后的检索调试信息直接响应前端
+    return debug_retrieval(request.question, course_id)
+
+# FastAPI POST接口路由：为指定课程生成AI学习计划
+@app.post("/courses/{course_id}/agents/learning-plan")
+def learning_plan(
+    course_id: str,                          # 路径参数：课程ID，限定本次生成计划使用哪一个课程的知识库
+    request: LearningPlanRequest,            # 请求体参数，Pydantic模型，接收前端传入的学习目标、天数、难度、每日时长
+    session: tuple[str, str] = Depends(current_session), # 依赖注入：校验用户登录；返回元组 (user_id, token)，未登录直接返回401
+):
+    """
+    课程Agent接口：基于课程知识库RAG生成结构化学习计划
+    """
+    # 解包session元组，取出登录用户ID；下划线 _ 代表丢弃token，本接口不需要使用token
+    user_id, _ = session
+
+    try:
+        # 权限校验函数：①判断课程是否存在 ②判断当前用户是否属于该课程（老师/学生）
+        course_store.require_course_access(course_id, user_id)
+    except LookupError as exc:
+        # 捕获LookupError异常：传入的course_id课程不存在
+        # from exc：保留原始异常堆栈信息，服务端日志可以看到原始报错
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except PermissionError as exc:
+        # 捕获PermissionError异常：课程存在，但该用户不是课程成员，没有访问权限
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+
+    # 调用业务逻辑函数generate_learning_plan生成学习计划
+    # 内部逻辑：RAG检索本课程知识库 → 组装上下文 → LLM结构化输出LearningPlanResponse
+    return generate_learning_plan(
+        course_id=course_id,                # 传递课程ID，让RAG检索只读取本课程文档，实现知识库隔离
+        goal=request.goal,                  # 用户学习目标，来自请求体
+        days=request.days,                  # 计划总天数，来自请求体
+        difficulty=request.difficulty,      # 难度等级 beginner/intermediate/advanced，来自请求体
+        daily_minutes=request.daily_minutes,# 每日学习分钟数，来自请求体
+    )
+
+# FastAPI POST接口路由：为指定课程生成测验题目
+@app.post("/courses/{course_id}/agents/quiz")
+def quiz(
+    course_id: str,                          # 路径参数：课程ID，限定RAG检索只使用该课程知识库
+    request: QuizRequest,                    # 请求体，Pydantic自动校验参数范围、类型，非法参数直接返回422
+    session: tuple[str, str] = Depends(current_session), # 依赖注入校验登录状态；返回元组(user_id, token)，未登录返回401
+):
+    """
+    课程Agent接口：基于课程知识库RAG自动生成测验题
+    """
+    # 解包会话元组，拿到登录用户ID；下划线_丢弃token，本接口不需要使用token
+    user_id, _ = session
+
+    try:
+        # 权限校验：校验课程是否存在、当前用户是否为本课程的老师/学生
+        course_store.require_course_access(course_id, user_id)
+    except LookupError as exc:
+        # 捕获异常：course_id对应的课程不存在，返回HTTP 404
+        # from exc：保留原始异常堆栈，服务端日志可以查看原始报错信息
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except PermissionError as exc:
+        # 捕获异常：课程存在，但用户不是课程成员，没有权限访问该课程资源，返回HTTP 403
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+
+    # 调用业务函数generate_quiz生成测验，传入全部参数
+    # 内部逻辑：search检索课程知识库 → 拼接上下文 → LLM结构化输出QuizResponse
+    return generate_quiz(
+        course_id=course_id,                # 传递课程ID，用于RAG知识库隔离
+        topic=request.topic,                # 出题主题，取自前端请求体
+        question_count=request.question_count, # 题目数量，取自前端请求体
+        question_type=request.question_type,   # 题型，取自前端请求体
+        difficulty=request.difficulty,          # 难度，取自前端请求体
+    )
 
 
 # 登录会话创建接口，POST无鉴权，生成全新用户登录凭证，返回标准化会话结构体
@@ -723,3 +1204,4 @@ def logout(
     auth_store.revoke_session(token)
     # 返回登出成功标识
     return {"logged_out": True}
+

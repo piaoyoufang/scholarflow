@@ -59,10 +59,96 @@ class QAEventStore:
                     pass_result INTEGER NOT NULL DEFAULT 1, -- 评估是否通过 1=True通过 0=False不通过
                     quality_score INTEGER NOT NULL DEFAULT 100, -- 问答质量分数
                     error TEXT NOT NULL DEFAULT '',  -- 发生错误时记录错误信息，正常为空字符串
+                    process_status TEXT NOT NULL DEFAULT 'pending',  --任务处理状态，默认pending待处理
+                    process_note TEXT NOT NULL DEFAULT '',           --任务备注、错误信息、进度描述
+                    processed_at TEXT NOT NULL DEFAULT '',           --任务真正处理完成的UTC时间，未完成为空字符串
                     created_at TEXT NOT NULL        -- 事件UTC创建时间
                 )
                 """
             )
+            # 查询 qa_events 表现有的全部字段名称，存入集合，集合用于快速判断字段是否存在
+            existing_columns = {
+                row["name"]
+                for row in conn.execute("PRAGMA table_info(qa_events)").fetchall()
+            }
+
+            # 如果表里面没有 process_status 字段，执行SQL给表新增该列，默认值为 pending
+            if "process_status" not in existing_columns:
+                conn.execute("ALTER TABLE qa_events ADD COLUMN process_status TEXT NOT NULL DEFAULT 'pending'")
+
+            # 如果没有 process_note 字段，新增，默认空字符串
+            if "process_note" not in existing_columns:
+                conn.execute("ALTER TABLE qa_events ADD COLUMN process_note TEXT NOT NULL DEFAULT ''")
+
+            # 如果没有 processed_at 字段，新增，默认空字符串
+            if "processed_at" not in existing_columns:
+                conn.execute("ALTER TABLE qa_events ADD COLUMN processed_at TEXT NOT NULL DEFAULT ''")
+
+    def update_process_status(
+            self,
+            event_id: str,  # qa_events表的事件唯一ID
+            status: str,  # 需要更新成的处理状态
+            note: str = "",  # 处理备注，错误/处理说明，选填，默认空字符串
+    ) -> None:
+        # 校验status只能是约定的4种状态，防止非法状态存入数据库
+        if status not in {"pending", "processing", "resolved", "ignored"}:
+            raise ValueError("status 只能是 pending/processing/resolved/ignored")
+
+        # 获取数据库连接，with上下文自动关闭连接、提交事务
+        with self.connect() as conn:
+            # 执行update更新SQL语句
+            cursor = conn.execute(
+                """
+                UPDATE qa_events
+                SET process_status = ?,
+                    process_note   = ?,
+                    processed_at   = ?
+                WHERE event_id = ?
+                """,
+                # sqlite占位符? 参数，顺序对应上面SQL的?
+                (status, note, utc_now(), event_id),
+            )
+            # cursor.rowcount：拿到本次SQL影响的数据行数
+            # rowcount ==0：WHERE条件没有匹配到任何event_id，记录不存在
+            if cursor.rowcount == 0:
+                raise LookupError("问答事件不存在")
+
+    def dashboard_summary(self, course_id: str) -> dict:
+        """获取课程问答仪表盘汇总统计数据，给教师后台看板使用"""
+        # 打开sqlite数据库连接，with上下文自动提交、自动关闭连接
+        with self.connect() as conn:
+            # 查询该课程全部问答事件总数量
+            total = conn.execute(
+                "SELECT COUNT(*) AS count FROM qa_events WHERE course_id = ?",
+                (course_id,),  # sqlite占位符参数，防止sql注入
+            ).fetchone()["count"]  # fetchone拿到单行Row对象，取出count字段值
+
+            # 查询：该课程引用数量=0 的问答（回答没有引用文档来源）
+            no_citation = conn.execute(
+                "SELECT COUNT(*) AS count FROM qa_events WHERE course_id = ? AND citation_count = 0",
+                (course_id,),
+            ).fetchone()["count"]
+
+            # 查询低质量回答数量：评判不通过 / 质量分数低于60 / 存在报错信息
+            low_quality = conn.execute(
+                """
+                SELECT COUNT(*) AS count
+                FROM qa_events
+                WHERE course_id = ? AND (pass_result = 0 OR quality_score < 60 OR error != '')
+                """,
+                (course_id,),
+            ).fetchone()["count"]
+
+        # 计算引用率：(总问答‑无引用问答)/总问答；total=0避免除以0报错，直接赋值0
+        citation_rate = 0 if total == 0 else round((total - no_citation) / total, 4)
+
+        # 返回统计字典，提供给接口返回前端仪表盘
+        return {
+            "qa_count": total,  # 当前课程问答总条数
+            "no_citation_count": no_citation,  # 无引用回答数量
+            "low_quality_count": low_quality,  # 低质量回答数量
+            "citation_rate": citation_rate,  # 文档引用率，0~1，保留4位小数
+        }
 
     def record_event(
         self,

@@ -96,6 +96,17 @@ def ensure_chat_state() -> None:
     # 最近一次异步任务task_id，方便查询任务状态
     if "last_task_id" not in st.session_state:
         st.session_state.last_task_id = ""
+    # 判断会话状态中是否没有保存上一轮用户提问的key
+    if "last_question" not in st.session_state:
+        # 初始化，把last_question设置为空字符串，st.session_state是streamlit页面全局会话存储，页面刷新不会丢失
+        st.session_state.last_question = ""
+    # 判断会话状态中是否没有保存上一轮AI回答的key
+    if "last_answer" not in st.session_state:
+        # 初始化上一轮AI回答，赋值空字符串
+        st.session_state.last_answer = ""
+    # 保存最近一次问答分析返回的低质量问题列表，供处理表单选择 event_id
+    if "low_quality_items" not in st.session_state:
+        st.session_state.low_quality_items = []
 
 
 def load_thread_messages(thread_id: str) -> bool:
@@ -542,6 +553,60 @@ def render_documents_tab() -> None:
             documents = response.json().get("documents", [])
             if documents:
                 st.dataframe(documents, use_container_width=True)
+                # 如果文档列表不为空，渲染表格展示文档元数据
+                if documents:
+                    # Streamlit表格展示文档列表，宽度占满容器
+                    st.dataframe(documents, use_container_width=True)
+                    # 增加二级标题：资料操作区域
+                    st.markdown("### 资料操作")
+                    # 遍历每一条文档记录
+                    for document in documents:
+                        # 取出文档唯一标识
+                        source_id = document["source_id"]
+                        # 原始上传文件名
+                        filename = document["original_name"]
+                        # 文档处理状态：processing / success / failed
+                        status = document["status"]
+
+                        # 折叠面板：标题展示 文件名｜状态｜source_id，点击展开操作按钮
+                        with st.expander(f"{filename}｜{status}｜{source_id}"):
+                            # 切分为左右两列布局，col1重新入库，col2删除
+                            col1, col2 = st.columns(2)
+
+                            # 第一列：重新入库按钮
+                            with col1:
+                                # key必须带source_id，streamlit依靠key区分循环里多个按钮，防止组件冲突
+                                if st.button("重新入库", key=f"reingest_{source_id}"):
+                                    # POST请求后端reingest接口，触发文档重新向量化任务
+                                    response = api_post(
+                                        f"/courses/{course_id}/documents/{source_id}/reingest",
+                                        timeout=30,
+                                    )
+                                    # 判断http请求成功
+                                    if response.is_success:
+                                        data = response.json()
+                                        # 将返回的task_id存入session_state，方便页面其他地方读取任务id轮询进度
+                                        st.session_state.last_task_id = data.get("task_id", "")
+                                        st.success(f"已创建重新入库任务：{st.session_state.last_task_id}")
+                                    else:
+                                        # 请求失败，展示后端返回的错误信息
+                                        st.error(response_error(response))
+
+                            # 第二列：删除资料按钮
+                            with col2:
+                                if st.button("删除资料", key=f"delete_{source_id}"):
+                                    # 发送DELETE请求，调用后端删除文档接口，带上鉴权请求头
+                                    response = httpx.delete(
+                                        f"{API_BASE_URL}/courses/{course_id}/documents/{source_id}",
+                                        headers=auth_headers(),
+                                        timeout=30,
+                                    )
+                                    if response.is_success:
+                                        st.success("资料已删除")
+                                        # 页面强制刷新，重新拉取课程文档列表，删掉的条目立刻消失
+                                        st.rerun()
+                                    else:
+                                        st.error(response_error(response))
             else:
                 st.warning("这门课程暂时没有入库文档。请先上传课程资料。")
         else:
@@ -563,11 +628,63 @@ def render_qa_tab() -> None:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
 
+    if st.session_state.get("last_question") and st.session_state.get("last_answer"):
+        st.markdown("### 对上一条回答反馈")
+        col1, col2 = st.columns(2)
+
+        with col1:
+            if st.button("有帮助 👍", use_container_width=True):
+                response = api_post(
+                    f"/courses/{course_id}/feedback",
+                    json={
+                        "thread_id": st.session_state.thread_id,
+                        "question": st.session_state.last_question,
+                        "answer": st.session_state.last_answer,
+                        "rating": "up",
+                        "reason": "",
+                        "comment": "",
+                    },
+                    timeout=30,
+                )
+                if response.is_success:
+                    st.success("感谢反馈")
+                else:
+                    st.error(response_error(response))
+
+        with col2:
+            with st.form("down_feedback_form"):
+                reason = st.selectbox(
+                    "没帮助的原因",
+                    ["答案不准确", "没有引用", "引用不相关", "回答太少", "没看懂", "其他"],
+                )
+                comment = st.text_area("补充说明")
+                submitted = st.form_submit_button("没帮助 👎", use_container_width=True)
+            if submitted:
+                response = api_post(
+                    f"/courses/{course_id}/feedback",
+                    json={
+                        "thread_id": st.session_state.thread_id,
+                        "question": st.session_state.last_question,
+                        "answer": st.session_state.last_answer,
+                        "rating": "down",
+                        "reason": reason,
+                        "comment": comment,
+                    },
+                    timeout=30,
+                )
+                if response.is_success:
+                    st.success("反馈已记录")
+                else:
+                    st.error(response_error(response))
+
+
     question = st.chat_input("输入课程相关问题")
     if not question:
         return
-
+    # 用户问题可以立刻保存
+    st.session_state.last_question = question
     st.session_state.messages.append({"role": "user", "content": question})
+
     try:
         with st.spinner("正在检索当前课程知识库并生成回答..."):
             response = api_post(
@@ -593,6 +710,9 @@ def render_qa_tab() -> None:
                 citation_lines.append(f"- {source} {locator}: {quote}")
             answer_text += "\n".join(citation_lines)
 
+        # 到这里 answer_text 才真正生成完成。
+        # 所以 last_answer 必须放在这里赋值，不能放在调用接口之前。
+        st.session_state.last_answer = answer_text
         st.session_state.messages.append({"role": "assistant", "content": answer_text})
         st.rerun()
     except httpx.RequestError as exc:
@@ -809,6 +929,10 @@ def render_analytics_tab() -> None:
                 response = api_get(path, timeout=30)
                 if response.is_success:
                     items = response.json().get("items", [])
+                    if title == "低质量问题":
+                        # 低质量接口返回的每一条记录都包含 event_id。
+                        # 保存到 session_state，后面的处理表单可以直接选择，不需要用户手抄 UUID。
+                        st.session_state.low_quality_items = items
                     if items:
                         st.dataframe(items, use_container_width=True)
                     else:
@@ -817,6 +941,73 @@ def render_analytics_tab() -> None:
                     st.error(response_error(response))
             except httpx.RequestError as exc:
                 st.error(f"读取{title}失败：{exc}")
+        # 处理区域加在这里
+    st.divider()
+    st.markdown("### 处理低质量问题")
+    low_quality_items = st.session_state.get("low_quality_items", [])
+    if not low_quality_items:
+        st.info("请先点击“刷新分析数据”，并确保课程中存在低质量问题记录。")
+        return
+
+    event_options = {
+        f"{item.get('event_id', '')}｜{item.get('question', '')[:60]}": item.get("event_id", "")
+        for item in low_quality_items
+        if item.get("event_id")
+    }
+    if not event_options:
+        st.warning("低质量问题列表中没有 event_id，无法更新处理状态。")
+        return
+
+    with st.form("process_qa_event_form"):
+        selected_event = st.selectbox("选择要处理的问答事件", list(event_options))
+        event_id = event_options[selected_event]
+        status = st.selectbox("处理状态", ["pending", "processing", "resolved", "ignored"])
+        note = st.text_area("处理备注", placeholder="例如：已补充资料并重新入库")
+        submitted = st.form_submit_button("更新处理状态")
+
+    if submitted:
+        response = httpx.patch(
+            f"{API_BASE_URL}/courses/{course_id}/qa-events/{event_id}/status",
+            headers=auth_headers(),
+            json={"status": status, "note": note},
+            timeout=30,
+        )
+        if response.is_success:
+            st.success("处理状态已更新")
+        else:
+            st.error(response_error(response))
+
+def render_dashboard_tab() -> None:
+    st.subheader("课程看板")
+    course_id = require_selected_course()
+    if not course_id:
+        return
+
+    if st.button("刷新课程看板", use_container_width=True):
+        try:
+            response = api_get(f"/courses/{course_id}/dashboard", timeout=30)
+            if response.is_success:
+                data = response.json()
+
+                col1, col2, col3 = st.columns(3)
+                col1.metric("文档总数", data.get("document_count", 0))
+                col2.metric("成功入库", data.get("success_document_count", 0))
+                col3.metric("入库失败", data.get("failed_document_count", 0))
+
+                col4, col5, col6 = st.columns(3)
+                col4.metric("问答总数", data.get("qa_count", 0))
+                col5.metric("无引用问题", data.get("no_citation_count", 0))
+                col6.metric("低质量问题", data.get("low_quality_count", 0))
+
+                col7, col8, col9 = st.columns(3)
+                citation_rate = data.get("citation_rate", 0)
+                col7.metric("引用率", f"{citation_rate * 100:.1f}%")
+                col8.metric("点赞数", data.get("feedback_up_count", 0))
+                col9.metric("点踩数", data.get("feedback_down_count", 0))
+            else:
+                st.error(response_error(response))
+        except httpx.RequestError as exc:
+            st.error(f"读取课程看板失败：{exc}")
 
 
 # streamlit全局页面配置：页面标题、图标、宽布局
@@ -853,6 +1044,7 @@ tabs = st.tabs([
     "检索可视化",
     "上传任务",
     "问答分析",
+    "课程看板",
 ])
 
 # 每个tab绑定对应的渲染函数
@@ -872,3 +1064,7 @@ with tabs[6]:
     render_tasks_tab()
 with tabs[7]:
     render_analytics_tab()
+with tabs[8]:
+    render_dashboard_tab()
+
+

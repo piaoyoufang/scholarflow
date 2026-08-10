@@ -197,6 +197,42 @@ class KnowledgeLibrary:
             conn.execute("DELETE FROM documents WHERE source_id = ?", (source_id,))
         return document
 
+    def document_summary(self, course_id: str) -> dict:
+        """统计课程文档处理状态汇总，给教师知识库看板使用"""
+        # 获取sqlite数据库连接，with上下文自动关闭连接、提交事务
+        with self.connect() as conn:
+            # SQL：按status分组统计该课程下每种状态的文档数量
+            rows = conn.execute(
+                """
+                SELECT status, COUNT(*) AS count
+                FROM documents
+                WHERE course_id = ?
+                GROUP BY status
+                """,
+                (course_id,),  # SQL参数，防止SQL注入
+            ).fetchall()  # fetchall()取出全部分组查询结果，返回list[Row]
+
+        # 初始化统计字典，全部默认置0；数据库没有的状态不会返回row，靠初始化兜底
+        data = {
+            "document_count": 0,  # 文档总数量
+            "success_document_count": 0,  # 处理成功文档数
+            "failed_document_count": 0,  # 处理失败文档数
+            "processing_document_count": 0,  # 正在处理文档数
+        }
+
+        # 遍历分组查询返回的每一行结果
+        for row in rows:
+            count = row["count"]  # 当前状态对应的文档数量
+            data["document_count"] += count  # 累加得到文档总数量
+
+            # 根据status，把数量赋值到对应key
+            if row["status"] == "success":
+                data["success_document_count"] = count
+            elif row["status"] == "failed":
+                data["failed_document_count"] = count
+            elif row["status"] == "processing":
+                data["processing_document_count"] = count
+        return data
 
 # 全局单例，业务代码直接导入使用，不需要手动new实例
 knowledge_library = KnowledgeLibrary()

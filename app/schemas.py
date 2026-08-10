@@ -29,6 +29,21 @@ class AskRequest(BaseModel):
         description="客户端生成的会话 UUID，不能使用公共默认值。",
     )
 
+# 用户反馈
+class FeedbackRequest(BaseModel):
+    # 会话线程ID，长度做校验，防止传入空或者超长字符串
+    thread_id: str = Field(min_length=8, max_length=128)
+    # 用户原始提问，最少1字符，最大4000字符
+    question: str = Field(min_length=1, max_length=4000)
+    # AI给出的回答内容，最大8000字符
+    answer: str = Field(min_length=1, max_length=8000)
+    # 评价，只能是字符串 "up" 点赞 或者 "down" 点踩，传其他值直接422参数校验报错
+    rating: Literal["up", "down"]
+    # 点踩原因，选填，不传默认空字符串，最大200字符
+    reason: str = Field(default="", max_length=200)
+    # 用户额外补充备注评论，选填，不传默认空字符串，最大1000字符
+    comment: str = Field(default="", max_length=1000)
+
 # 工具路由决策模型：让 Qwen 先判断要不要调用 MCP
 class RouteDecision(BaseModel):
     use_mcp: bool = Field(
@@ -199,3 +214,9 @@ class QuizResponse(BaseModel):
     topic: str                                      # 用户请求的测验主题，回显给前端
     # 整套题目数组，每一项是QuizItem对象；默认空列表
     items: list[QuizItem] = Field(default_factory=list)
+
+class QAEventProcessRequest(BaseModel):
+    # 处理状态，只允许这4个固定枚举值，传其它值FastAPI直接返回422校验错误
+    status: Literal["pending", "processing", "resolved", "ignored"]
+    # 处理备注，选填，不传默认空字符串，最大1000字符，防止超长文本入库
+    note: str = Field(default="", max_length=1000)

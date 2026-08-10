@@ -72,7 +72,12 @@ from app.schemas import QuizRequest
 from app.agents.quiz import generate_quiz
 # 从分析模块的qa_events文件导入全局单例对象 qa_event_store
 from app.analytics.qa_events import qa_event_store
-
+# 导入反馈存储单例对象，调用create_feedback / summary / recent_down_feedback等数据库方法
+from app.feedback.store import feedback_store
+# 导入Pydantic请求模型FeedbackRequest，用于接口接收校验前端提交的JSON请求体
+from app.schemas import FeedbackRequest
+# 从 app/schemas 模块导入Pydantic请求体模型 QAEventProcessRequest
+from app.schemas import QAEventProcessRequest
 
 
 # 执行全局日志初始化配置：开启控制台+JSONL文件双输出、加载自定义JSON日志格式化器
@@ -81,7 +86,22 @@ configure_logging()
 logger = get_logger("api")
 
 # 初始化后端API服务实例，设置接口文档标题
-app = FastAPI(title="ScholarFlow")
+app = FastAPI(
+    title="ScholarFlow",
+    openapi_tags=[
+        {"name": "系统", "description": "服务首页、健康检查、存活检查和就绪检查。"},
+        {"name": "认证", "description": "注册、登录、刷新令牌和退出登录。"},
+        {"name": "会话", "description": "会话、线程和历史对话记录管理。"},
+        {"name": "课程管理", "description": "课程创建、课程查询和课程成员管理。"},
+        {"name": "文档管理", "description": "课程文档上传、删除、重新入库和文档列表查询。"},
+        {"name": "任务中心", "description": "异步上传、文档入库等后台任务查询。"},
+        {"name": "问答", "description": "课程问答、全局问答、问答反馈和问答事件处理。"},
+        {"name": "分析看板", "description": "课程看板、高频问题、无引用问题和低质量问题分析。"},
+        {"name": "检索调试", "description": "查看检索召回过程和命中文档片段。"},
+        {"name": "学习工具", "description": "学习计划生成和自动出题。"},
+        {"name": "运行监控", "description": "运行时指标和系统调用统计。"},
+    ],
+)
 # 实例化Bearer令牌解析器；auto_error=False 关闭内置自动报错，自定义鉴权异常提示
 bearer = HTTPBearer(auto_error=False)
 
@@ -259,7 +279,7 @@ async def observe_http_request(request: Request, call_next):
 
 
 # 首页根路径接口，访问展示服务运行状态与文档地址
-@app.get("/")
+@app.get("/", tags=["系统"], summary="服务首页")
 def root():
     return {
         "message": "ScholarFlow API is running",
@@ -267,20 +287,20 @@ def root():
     }
 
 # 健康检测接口，运维监控/负载均衡用于检测服务存活
-@app.get("/health")
+@app.get("/health", tags=["系统"], summary="健康检查")
 def health():
     return {"status": "ok"}
 
 
 # FastAPI接口装饰器，定义GET存活探针路由，用于容器/集群检测服务进程是否存活
-@app.get("/health/live")
+@app.get("/health/live", tags=["系统"], summary="存活检查")
 def liveness():
     # 简单返回存活标识，只要进程正常运行就能响应，不校验业务依赖
     return {"status": "alive"}
 
 
 # FastAPI接口装饰器，定义GET就绪探针路由，校验所有数据库、向量目录依赖是否可用
-@app.get("/health/ready")
+@app.get("/health/ready", tags=["系统"], summary="就绪检查")
 def readiness():
     # 执行全量存储资源健康检查，获取数据库、向量目录状态报告
     report = readiness_report()
@@ -320,7 +340,7 @@ def account_response(user_id: str) -> AccountSessionResponse:
 
 # 用户注册接口 POST /auth/register
 # response_model 约束返回数据格式为账号会话模型；status_code=201 标准资源创建成功状态码
-@app.post("/auth/register", response_model=AccountSessionResponse, status_code=201)
+@app.post("/auth/register", response_model=AccountSessionResponse, status_code=201, tags=["认证"], summary="注册账号")
 def register(request: RegisterRequest):
     try:
         # 调用存储层注册方法，传入前端标准化用户名、解密后的明文原始密码
@@ -339,7 +359,7 @@ def register(request: RegisterRequest):
 
 # 账号密码登录接口 POST /auth/login
 # response_model 自动序列化双Token会话返回结构
-@app.post("/auth/login", response_model=AccountSessionResponse)
+@app.post("/auth/login", response_model=AccountSessionResponse, tags=["认证"], summary="账号登录")
 def login(request: LoginRequest):
     # 调用存储层校验账号密码，传入用户名、解密后的明文密码
     user_id = auth_store.verify_user(
@@ -355,7 +375,7 @@ def login(request: LoginRequest):
 
 # 长效刷新令牌续期接口 POST /auth/refresh
 # 使用refresh_token换新access_token与新refresh_token，旧刷新令牌直接失效
-@app.post("/auth/refresh", response_model=AccountSessionResponse)
+@app.post("/auth/refresh", response_model=AccountSessionResponse, tags=["认证"], summary="刷新登录令牌")
 def refresh_account_session(request: RefreshTokenRequest):
     try:
         # 调用存储层令牌轮换逻辑，传入前端携带的旧refresh_token
@@ -378,7 +398,7 @@ def refresh_account_session(request: RefreshTokenRequest):
 
 # 完整登出接口 POST /auth/logout
 # 同时作废当前access短期令牌 + 传入的refresh长效刷新令牌，彻底下线登录会话
-@app.post("/auth/logout")
+@app.post("/auth/logout", tags=["认证"], summary="退出登录")
 def logout_account(
     # 请求体携带需要注销的refresh_token
     request: RefreshTokenRequest,
@@ -396,7 +416,7 @@ def logout_account(
 
 
 # 创建课程接口 POST /courses
-@app.post("/courses")
+@app.post("/courses", tags=["课程管理"], summary="创建课程")
 def create_course(
     # 请求体，Pydantic模型自动校验前端传入JSON
     request: CourseCreateRequest,
@@ -416,7 +436,7 @@ def create_course(
 
 
 # 获取当前用户所有课程 GET /courses
-@app.get("/courses")
+@app.get("/courses", tags=["课程管理"], summary="获取课程列表")
 def list_courses(session: tuple[str, str] = Depends(current_session)):
     # 解包登录会话，拿到当前登录用户ID
     user_id, _ = session
@@ -425,7 +445,7 @@ def list_courses(session: tuple[str, str] = Depends(current_session)):
 
 
 # 获取单门课程详情 GET /courses/{course_id}
-@app.get("/courses/{course_id}")
+@app.get("/courses/{course_id}", tags=["课程管理"], summary="获取课程详情")
 def get_course(course_id: str, session: tuple[str, str] = Depends(current_session)):
     user_id, _ = session
     try:
@@ -442,7 +462,7 @@ def get_course(course_id: str, session: tuple[str, str] = Depends(current_sessio
 
 
 # 给课程添加成员 POST /courses/{course_id}/members
-@app.post("/courses/{course_id}/members")
+@app.post("/courses/{course_id}/members", tags=["课程管理"], summary="添加课程成员")
 def add_course_member(
     # 路径参数：目标课程id
     course_id: str,
@@ -467,7 +487,7 @@ def add_course_member(
 
 
 # 获取课程全部成员列表 GET /courses/{course_id}/members
-@app.get("/courses/{course_id}/members")
+@app.get("/courses/{course_id}/members", tags=["课程管理"], summary="获取课程成员")
 def list_course_members(course_id: str, session: tuple[str, str] = Depends(current_session)):
     user_id, _ = session
     try:
@@ -481,7 +501,7 @@ def list_course_members(course_id: str, session: tuple[str, str] = Depends(curre
     return {"members": course_store.list_members(course_id)}
 
 # 获取课程下全部文档列表接口 GET /courses/{course_id}/documents
-@app.get("/courses/{course_id}/documents")
+@app.get("/courses/{course_id}/documents", tags=["文档管理"], summary="获取课程文档列表")
 def list_course_documents(course_id: str, session: tuple[str, str] = Depends(current_session)):
     # 从登录会话元组解包，拿到当前登录用户ID，下划线表示token本接口不使用
     user_id, _ = session
@@ -497,8 +517,129 @@ def list_course_documents(course_id: str, session: tuple[str, str] = Depends(cur
     # 校验通过，调用知识库存储层，查询该课程所有文档，返回给前端
     return {"documents": knowledge_library.list_course_documents(course_id)}
 
+# 定义DELETE接口：删除课程下指定文档，路径参数：课程id、文档source_id
+@app.delete("/courses/{course_id}/documents/{source_id}", tags=["文档管理"], summary="删除课程文档")
+def delete_course_document(
+    # 路径变量：课程ID
+    course_id: str,
+    # 路径变量：文档唯一source_id
+    source_id: str,
+    # 依赖注入：校验当前登录会话，拿到 (user_id, token)，未登录直接401
+    session: tuple[str, str] = Depends(current_session),
+):
+    # 解包会话元组，取出当前登录用户id，丢弃token字段
+    user_id, _ = session
+    try:
+        # 权限校验：必须是该课程的教师才允许删除文档，学生无权限
+        course_store.require_course_teacher(course_id, user_id)
+        # 在SQLite文档元数据表，根据source_id查询文档记录
+        document = knowledge_library.get_document(source_id)
+        # 判断：记录不存在，或者文档所属课程和url传入的course_id不一致（防止越权跨课程删文档）
+        if not document or document["course_id"] != course_id:
+            raise LookupError("文档不存在")
+    # 捕获查找失败异常：文档找不到，返回404
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    # 捕获权限异常：不是课程老师，返回403禁止访问
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
 
-@app.post("/courses/{course_id}/documents/upload-async")
+    # ----------------------业务删除逻辑，三层删除：数据库记录、向量库、磁盘文件----------------------
+    # 1. 删除SQLite中的文档元数据记录，返回被删除的文档字典对象
+    deleted = knowledge_library.delete_document_record(source_id)
+
+    # 2. 删除Chroma向量库里该文档全部chunk向量
+    # 函数内部导入，避免全局导入循环依赖；只有走到删除逻辑才加载
+    from langchain_chroma import Chroma
+    from app.models import embeddings
+
+    # 实例化Chroma向量数据库对象
+    db = Chroma(
+        collection_name="scholarflow",   # 使用的向量集合名称
+        embedding_function=embeddings(), # 传入项目配置的embedding模型
+        persist_directory=settings.vector_db_dir, # 向量库本地存储目录，读取配置文件
+    )
+    # 根据metadata的source_id过滤，删除该文档全部向量分片
+    db.delete(where={"source_id": source_id})
+
+    # 3. 删除磁盘上原始上传的文件
+    # 拿到数据库记录里存储的文件路径，转为Path对象
+    file_path = Path(deleted["file_path"])
+    # unlink删除文件；missing_ok=True：文件已经不存在也不会抛出异常，防止二次删除报错
+    file_path.unlink(missing_ok=True)
+
+    # 返回成功响应，告知前端删除成功信息
+    return {
+        "deleted": True,
+        "source_id": source_id,
+        "filename": deleted["original_name"],
+    }
+
+
+# POST接口：对课程内已上传的文档执行【重新向量化入库】（重新解析、切块、写入向量库）
+@app.post("/courses/{course_id}/documents/{source_id}/reingest", tags=["文档管理"], summary="重新入库课程文档")
+def reingest_course_document(
+    # 路径参数：课程ID
+    course_id: str,
+    # 路径参数：目标文档的source_id
+    source_id: str,
+    # FastAPI内置后台任务对象，把耗时的文档解析任务放到后台异步执行，不阻塞HTTP响应
+    background_tasks: BackgroundTasks,
+    # 依赖注入：校验登录会话，返回(user_id, token)，未登录直接返回401
+    session: tuple[str, str] = Depends(current_session),
+):
+    # 解包会话，获取当前登录用户ID，丢弃token
+    user_id, _ = session
+    try:
+        # 权限校验：只有该课程的教师，才有权限重新向量化文档，学生无权限
+        course_store.require_course_teacher(course_id, user_id)
+        # 根据source_id从SQLite查询文档元数据记录
+        document = knowledge_library.get_document(source_id)
+        # 校验：文档不存在，或者文档所属课程和URL传入course_id不一致，防止跨课程越权操作
+        if not document or document["course_id"] != course_id:
+            raise LookupError("文档不存在")
+    # 捕获查找异常，返回404
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    # 捕获权限异常，不是教师返回403禁止访问
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+
+    # 取出数据库存储的原始文件路径，转为Path对象
+    file_path = Path(document["file_path"])
+    # 判断磁盘上原始文件是否还存在，文件丢失则无法重新解析，直接报错返回
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="原始文件不存在，无法重新入库")
+
+    # 更新SQLite文档状态为processing处理中，重置chunk_count为0
+    knowledge_library.update_status(source_id, "processing", chunk_count=0)
+
+    # 在task_store任务表创建一条异步任务记录，拿到task_id
+    task_id = task_store.create_task(
+        course_id=course_id,
+        source_id=source_id,
+        owner_user_id=user_id,
+    )
+
+    # 添加后台异步任务，HTTP接口立刻返回，文档解析向量化在后台跑
+    background_tasks.add_task(
+        run_ingestion_task,       # 需要后台执行的函数：文档摄入任务
+        task_id,                  # 参数1：任务id，用于更新任务进度
+        source_id,                # 参数2：文档source_id
+        str(file_path),           # 参数3：原始文件路径（转字符串）
+        course_id,                # 参数4：课程id，写入向量metadata做隔离
+    )
+
+    # 接口直接返回，不等待文档处理完成；前端拿着task_id轮询/tasks/{task_id}查询进度
+    return {
+        "task_id": task_id,
+        "source_id": source_id,
+        "status": "pending",
+        "message": "已创建重新入库任务",
+    }
+
+
+@app.post("/courses/{course_id}/documents/upload-async", tags=["文档管理"], summary="异步上传课程文档")
 async def upload_course_document_async(
     course_id: str,
     background_tasks: BackgroundTasks,
@@ -576,7 +717,7 @@ async def upload_course_document_async(
     }
 
 
-@app.get("/courses/{course_id}/tasks")
+@app.get("/courses/{course_id}/tasks", tags=["任务中心"], summary="查看课程任务列表")
 def list_course_tasks(course_id: str, session: tuple[str, str] = Depends(current_session)):
     """
     查询课程下全部上传/入库任务。
@@ -591,7 +732,7 @@ def list_course_tasks(course_id: str, session: tuple[str, str] = Depends(current
         raise HTTPException(status_code=403, detail=str(exc)) from exc
     return {"tasks": task_store.list_course_tasks(course_id)}
 
-@app.get("/tasks/{task_id}")
+@app.get("/tasks/{task_id}", tags=["任务中心"], summary="查看任务详情")
 def get_task(task_id: str, session: tuple[str, str] = Depends(current_session)):
     """
     查询任务详情接口
@@ -606,7 +747,7 @@ def get_task(task_id: str, session: tuple[str, str] = Depends(current_session)):
     # 将任务字典返回给前端，前端拿到status/progress/message/error做进度展示
     return {"task": task}
 
-@app.post("/courses/{course_id}/ask")
+@app.post("/courses/{course_id}/ask", tags=["问答"], summary="课程内问答")
 def ask_course(
     course_id: str,                          # 路径参数：要提问的课程ID
     request: AskRequest,                     # 请求体，Pydantic模型，里面包含question、thread_id等字段
@@ -692,7 +833,118 @@ def ask_course(
     # 对前端没有必要，也更容易触发 JSON 序列化问题。
     return answer_payload
 
-@app.get("/courses/{course_id}/analytics/top-questions")
+# PATCH接口：局部更新问答事件处理状态，路径携带课程id和事件id
+@app.patch("/courses/{course_id}/qa-events/{event_id}/status", tags=["问答"], summary="更新问答事件处理状态")
+def update_qa_event_status(
+    # 路径参数：课程ID，标识属于哪一门课程
+    course_id: str,
+    # 路径参数：qa_events表里面的事件唯一主键
+    event_id: str,
+    # 请求体，FastAPI自动解析前端JSON，QAEventProcessRequest做参数校验（status枚举、note长度）
+    request: QAEventProcessRequest,
+    # 依赖注入：校验用户登录会话，返回元组(user_id, token)；未登录直接返回401
+    session: tuple[str, str] = Depends(current_session),
+):
+    # 解包会话元组，拿到当前登录用户id，丢弃token字符串
+    user_id, _ = session
+    try:
+        # 权限校验：校验该用户是否为本课程老师；只有老师才允许修改事件处理状态
+        course_store.require_course_teacher(course_id, user_id)
+        # 调用存储层方法，更新数据库中这条qa_event的process_status、process_note、processed_at
+        qa_event_store.update_process_status(
+            event_id=event_id,
+            status=request.status,
+            note=request.note,
+        )
+    # 捕获LookupError：课程不存在 / event_id事件不存在，返回404
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    # 捕获PermissionError：用户不是该课程老师，没有操作权限，返回403禁止访问
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    # 捕获ValueError：传入非法status状态值，返回400参数错误
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    # 成功响应，返回事件id与更新后的状态
+    return {"event_id": event_id, "status": request.status}
+
+# GET接口：获取课程教师仪表盘全部汇总数据
+@app.get("/courses/{course_id}/dashboard", tags=["分析看板"], summary="获取课程看板")
+def course_dashboard(course_id: str, session: tuple[str, str] = Depends(current_session)):
+    # 从会话依赖拿到登录用户信息（user_id，token）
+    user_id, _ = session
+
+    try:
+        # 权限校验：校验当前登录用户必须是该课程教师，普通学生禁止访问仪表盘
+        course_store.require_course_teacher(course_id, user_id)
+    except LookupError as exc:
+        # LookupError：课程id不存在，返回404
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except PermissionError as exc:
+        # PermissionError：用户不是课程老师，无权限，返回403
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+
+    # 调用知识库存储类，获取文档统计（成功/失败/处理中文档数量）
+    document_data = knowledge_library.document_summary(course_id)
+    # 调用问答事件存储类，获取RAG问答质量统计（问答总数、无引用、低质量、引用率）
+    qa_data = qa_event_store.dashboard_summary(course_id)
+    # 调用反馈存储类，获取点赞点踩反馈统计
+    feedback_data = feedback_store.summary(course_id)
+
+    return {
+        # **字典解包：把document_data字典所有key-value展开合并到返回结果
+        **document_data,
+        # 把qa_data字典全部字段合并进来
+        **qa_data,
+        # 获取点赞数量，key不存在时默认返回0，防止程序报错
+        "feedback_up_count": feedback_data.get("up", 0),
+        # 获取点踩数量，key不存在时默认返回0
+        "feedback_down_count": feedback_data.get("down", 0),
+    }
+
+# POST接口：提交问答反馈（点赞/点踩），路径携带课程ID
+@app.post("/courses/{course_id}/feedback", tags=["问答"], summary="提交问答反馈")
+def create_feedback(
+    # 路径参数：课程id，标识该反馈归属哪一门课程
+    course_id: str,
+    # 请求体参数，FastAPI自动解析前端JSON，用FeedbackRequest做参数校验
+    request: FeedbackRequest,
+    # 依赖注入：校验用户登录会话，返回元组(user_id, token)，未登录直接返回401
+    session: tuple[str, str] = Depends(current_session),
+):
+    # 解包会话元组，拿到当前登录用户id，丢弃token
+    user_id, _ = session
+    try:
+        # 权限校验：判断该用户是否有权访问这门课程（学生/老师都可以提交反馈）
+        course_store.require_course_access(course_id, user_id)
+    # 捕获LookupError：课程不存在，返回404
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    # 捕获PermissionError：用户没有课程访问权限，返回403禁止访问
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+
+    try:
+        # 调用存储层方法，往sqlite写入一条反馈记录，返回新生成的feedback_id
+        feedback_id = feedback_store.create_feedback(
+            course_id=course_id,        # 课程id
+            user_id=user_id,            # 提交反馈的用户id
+            thread_id=request.thread_id,# 对话会话id，取自请求体
+            question=request.question,  # 用户提问，取自请求体
+            answer=request.answer,      # AI回答内容，取自请求体
+            rating=request.rating,      # up/down 点赞/点踩
+            reason=request.reason,      # 点踩原因
+            comment=request.comment,    # 用户附加评论
+        )
+    # 捕获ValueError：例如rating不是up/down的非法情况，返回400参数错误
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    # 成功响应，返回反馈id与状态
+    return {"feedback_id": feedback_id, "status": "ok"}
+
+@app.get("/courses/{course_id}/analytics/top-questions", tags=["分析看板"], summary="查看高频问题")
 def top_questions(course_id: str, session: tuple[str, str] = Depends(current_session)):
     """
     获取课程高频提问统计接口
@@ -713,7 +965,7 @@ def top_questions(course_id: str, session: tuple[str, str] = Depends(current_ses
     return {"items": qa_event_store.top_questions(course_id)}
 
 
-@app.get("/courses/{course_id}/analytics/no-citation")
+@app.get("/courses/{course_id}/analytics/no-citation", tags=["分析看板"], summary="查看无引用问题")
 def no_citation_questions(course_id: str, session: tuple[str, str] = Depends(current_session)):
     """
     获取零引用问答记录接口
@@ -734,7 +986,7 @@ def no_citation_questions(course_id: str, session: tuple[str, str] = Depends(cur
     return {"items": qa_event_store.no_citation_questions(course_id)}
 
 
-@app.get("/courses/{course_id}/analytics/low-quality")
+@app.get("/courses/{course_id}/analytics/low-quality", tags=["分析看板"], summary="查看低质量问题")
 def low_quality_questions(course_id: str, session: tuple[str, str] = Depends(current_session)):
     """
     获取低质量问答记录接口
@@ -756,7 +1008,7 @@ def low_quality_questions(course_id: str, session: tuple[str, str] = Depends(cur
 
 
 
-@app.post("/courses/{course_id}/retrieval/debug")
+@app.post("/courses/{course_id}/retrieval/debug", tags=["检索调试"], summary="检索调试")
 def retrieval_debug(
     course_id: str,                          # 路径参数：目标课程ID
     request: AskRequest,                     # 请求体模型，内部携带question、thread_id字段
@@ -784,7 +1036,7 @@ def retrieval_debug(
     return debug_retrieval(request.question, course_id)
 
 # FastAPI POST接口路由：为指定课程生成AI学习计划
-@app.post("/courses/{course_id}/agents/learning-plan")
+@app.post("/courses/{course_id}/agents/learning-plan", tags=["学习工具"], summary="生成学习计划")
 def learning_plan(
     course_id: str,                          # 路径参数：课程ID，限定本次生成计划使用哪一个课程的知识库
     request: LearningPlanRequest,            # 请求体参数，Pydantic模型，接收前端传入的学习目标、天数、难度、每日时长
@@ -818,7 +1070,7 @@ def learning_plan(
     )
 
 # FastAPI POST接口路由：为指定课程生成测验题目
-@app.post("/courses/{course_id}/agents/quiz")
+@app.post("/courses/{course_id}/agents/quiz", tags=["学习工具"], summary="生成测验题")
 def quiz(
     course_id: str,                          # 路径参数：课程ID，限定RAG检索只使用该课程知识库
     request: QuizRequest,                    # 请求体，Pydantic自动校验参数范围、类型，非法参数直接返回422
@@ -854,7 +1106,7 @@ def quiz(
 
 # 登录会话创建接口，POST无鉴权，生成全新用户登录凭证，返回标准化会话结构体
 # response_model 指定接口返回数据自动按SessionResponse模型校验、格式化
-@app.post("/sessions", response_model=SessionResponse)
+@app.post("/sessions", response_model=SessionResponse, tags=["会话"], summary="创建会话")
 def create_session():
     # 调用认证存储工具生成新用户ID、明文访问Token、Token过期ISO时间字符串
     user_id, token, expires_at = auth_store.create_session()
@@ -870,7 +1122,7 @@ def create_session():
 
 
 # FastAPI接口装饰器，定义GET请求路由，用于查询全系统运行时性能监控指标
-@app.get("/metrics/runtime")
+@app.get("/metrics/runtime", tags=["运行监控"], summary="查看运行时指标")
 def get_runtime_metrics(
     # 依赖注入校验当前登录会话，返回(user_id, token)二元组，未登录会直接拦截请求
     session: tuple[str, str] = Depends(current_session),
@@ -911,7 +1163,7 @@ def safe_upload_name(filename: str) -> str:
     return f"{stem}{suffix}"
 
 
-@app.post("/documents/upload")
+@app.post("/documents/upload", tags=["文档管理"], summary="上传文档")
 async def upload_document(
     file: UploadFile = File(...),
     session: tuple[str, str] = Depends(current_session),
@@ -969,7 +1221,7 @@ async def upload_document(
 
 
 # 核心问答接口，需携带Bearer Token鉴权
-@app.post("/ask")
+@app.post("/ask", tags=["问答"], summary="全局问答")
 def ask(request: AskRequest, session: tuple[str, str] = Depends(current_session)):
     user_id, _token = session
     # 判断配置是否开启限流功能，开启才执行问答接口用户级限流校验
@@ -1104,7 +1356,7 @@ def ask(request: AskRequest, session: tuple[str, str] = Depends(current_session)
     return answer
 
 # 查询当前用户拥有的全部会话线程，用于前端刷新页面/重启容器后找回历史入口
-@app.get("/threads")
+@app.get("/threads", tags=["会话"], summary="获取线程列表")
 def list_threads(session: tuple[str, str] = Depends(current_session)):
     user_id, _token = session
     threads = []
@@ -1126,7 +1378,7 @@ def list_threads(session: tuple[str, str] = Depends(current_session)):
     return {"threads": threads}
 
 # 查询指定会话线程信息接口，需要鉴权并校验线程归属
-@app.get("/threads/{thread_id}")
+@app.get("/threads/{thread_id}", tags=["会话"], summary="获取线程详情")
 def get_thread(thread_id: str, session: tuple[str, str] = Depends(current_session)):
     user_id, _token = session
     # 校验当前登录用户是否拥有该线程访问权限，无权限直接抛异常
@@ -1145,7 +1397,7 @@ def get_thread(thread_id: str, session: tuple[str, str] = Depends(current_sessio
     }
 
 # 删除指定会话线程接口，清空对话记忆与权限绑定关系
-@app.delete("/threads/{thread_id}")
+@app.delete("/threads/{thread_id}", tags=["会话"], summary="删除线程")
 def clear_thread(thread_id: str, session: tuple[str, str] = Depends(current_session)):
     user_id, _token = session
     # 前置校验：用户必须是该线程所有者
@@ -1158,7 +1410,7 @@ def clear_thread(thread_id: str, session: tuple[str, str] = Depends(current_sess
     return {"deleted": True, "thread_id": thread_id}
 
 # 获取当前登录用户信息接口，需携带合法Bearer Token鉴权
-@app.get("/sessions/current")
+@app.get("/sessions/current", tags=["会话"], summary="获取当前登录会话")
 def get_current_session(
     # 依赖全局鉴权函数自动校验Token，鉴权成功得到(user_id, 原始token)二元组
     session: tuple[str, str] = Depends(current_session),
@@ -1171,7 +1423,7 @@ def get_current_session(
 
 # Token续期刷新接口，传入有效旧Token，生成全新Token并作废旧Token，返回标准化会话结构
 # response_model 自动约束返回数据格式为SessionResponse模型
-@app.post("/sessions/refresh", response_model=SessionResponse)
+@app.post("/sessions/refresh", response_model=SessionResponse, tags=["会话"], summary="刷新当前会话")
 def refresh_session(
     # 依赖鉴权校验旧Token合法性
     session: tuple[str, str] = Depends(current_session),
@@ -1193,7 +1445,7 @@ def refresh_session(
 
 
 # 登出注销当前Token接口，主动作废当前登录凭证
-@app.delete("/sessions/current")
+@app.delete("/sessions/current", tags=["会话"], summary="清除当前会话")
 def logout(
     # 依赖鉴权校验当前会话有效
     session: tuple[str, str] = Depends(current_session),

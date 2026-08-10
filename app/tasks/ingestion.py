@@ -12,6 +12,7 @@ from app.ingestion.loader import ingest
 from app.knowledge.library import knowledge_library
 # 任务存储单例，用来更新异步任务的进度、状态、错误信息
 from app.tasks.store import task_store
+from app.cache import delete_prefix
 
 
 def run_ingestion_task(

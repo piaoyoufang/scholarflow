@@ -1,4 +1,4 @@
-﻿import logging
+import logging
 import re
 from pathlib import Path
 from time import perf_counter
@@ -74,6 +74,7 @@ from app.agents.quiz import generate_quiz
 from app.analytics.qa_events import qa_event_store
 # 导入反馈存储单例对象，调用create_feedback / summary / recent_down_feedback等数据库方法
 from app.feedback.store import feedback_store
+from app.cache import delete_prefix, get_json, set_json
 # 导入Pydantic请求模型FeedbackRequest，用于接口接收校验前端提交的JSON请求体
 from app.schemas import FeedbackRequest
 # 从 app/schemas 模块导入Pydantic请求体模型 QAEventProcessRequest
@@ -416,77 +417,62 @@ def logout_account(
 
 
 # 创建课程接口 POST /courses
-@app.post("/courses", tags=["课程管理"], summary="创建课程")
+@app.post("/courses", tags=["????"], summary="????")
 def create_course(
-    # 请求体，Pydantic模型自动校验前端传入JSON
     request: CourseCreateRequest,
-    # Depends 依赖注入；current_session校验登录，返回元组 (user_id, token)
     session: tuple[str, str] = Depends(current_session),
 ):
-    # 解包会话元组：取出登录用户id，下划线代表token这里不需要使用
     user_id, _ = session
-    # 调用存储层方法创建课程，当前登录用户作为课程创建老师
     course = course_store.create_course(
         course_name=request.course_name,
         description=request.description,
         owner_teacher_id=user_id,
     )
-    # dataclass对象转字典返回给前端
+    delete_prefix(f"user:{user_id}:courses")
     return {"course": course.__dict__}
-
-
-# 获取当前用户所有课程 GET /courses
-@app.get("/courses", tags=["课程管理"], summary="获取课程列表")
+@app.get("/courses", tags=["????"], summary="??????")
 def list_courses(session: tuple[str, str] = Depends(current_session)):
-    # 解包登录会话，拿到当前登录用户ID
     user_id, _ = session
-    # 查询该用户加入的全部课程，直接返回字典列表给前端
-    return {"courses": course_store.list_user_courses(user_id)}
-
-
-# 获取单门课程详情 GET /courses/{course_id}
-@app.get("/courses/{course_id}", tags=["课程管理"], summary="获取课程详情")
+    cache_key = f"user:{user_id}:courses"
+    cached = get_json(cache_key)
+    if cached is not None:
+        return cached
+    result = {"courses": course_store.list_user_courses(user_id)}
+    set_json(cache_key, result)
+    return result
+@app.get("/courses/{course_id}", tags=["????"], summary="??????")
 def get_course(course_id: str, session: tuple[str, str] = Depends(current_session)):
     user_id, _ = session
     try:
-        # 权限校验：课程必须存在 && 当前用户是课程成员（老师/学生均可访问）
         course_store.require_course_access(course_id, user_id)
     except LookupError as exc:
-        # 捕获“课程不存在”异常，抛出404接口错误，from exc保留原始异常栈
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except PermissionError as exc:
-        # 捕获无权限异常，抛出403禁止访问
         raise HTTPException(status_code=403, detail=str(exc)) from exc
-    # 校验通过，返回课程详情
-    return {"course": course_store.get_course(course_id)}
-
-
-# 给课程添加成员 POST /courses/{course_id}/members
-@app.post("/courses/{course_id}/members", tags=["课程管理"], summary="添加课程成员")
+    cache_key = f"course:{course_id}:detail"
+    cached = get_json(cache_key)
+    if cached is not None:
+        return cached
+    result = {"course": course_store.get_course(course_id)}
+    set_json(cache_key, result)
+    return result
+@app.post("/courses/{course_id}/members", tags=["????"], summary="??????")
 def add_course_member(
-    # 路径参数：目标课程id
     course_id: str,
-    # 请求体：待添加的用户id、角色
     request: CourseMemberAddRequest,
-    # 登录会话依赖
     session: tuple[str, str] = Depends(current_session),
 ):
     user_id, _ = session
     try:
-        # 权限校验：执行操作的人必须是这门课的老师
         course_store.require_course_teacher(course_id, user_id)
-        # 调用存储层添加成员，支持新增/覆盖角色
         course_store.add_member(course_id, request.user_id, request.role_in_course)
+        delete_prefix(f"course:{course_id}:")
+        delete_prefix(f"user:{request.user_id}:courses")
     except LookupError as exc:
-        # 课程不存在返回404
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except PermissionError as exc:
-        # 不是老师返回403权限不足
         raise HTTPException(status_code=403, detail=str(exc)) from exc
     return {"status": "ok"}
-
-
-# 获取课程全部成员列表 GET /courses/{course_id}/members
 @app.get("/courses/{course_id}/members", tags=["课程管理"], summary="获取课程成员")
 def list_course_members(course_id: str, session: tuple[str, str] = Depends(current_session)):
     user_id, _ = session
@@ -518,65 +504,41 @@ def list_course_documents(course_id: str, session: tuple[str, str] = Depends(cur
     return {"documents": knowledge_library.list_course_documents(course_id)}
 
 # 定义DELETE接口：删除课程下指定文档，路径参数：课程id、文档source_id
-@app.delete("/courses/{course_id}/documents/{source_id}", tags=["文档管理"], summary="删除课程文档")
+@app.delete("/courses/{course_id}/documents/{source_id}", tags=["????"], summary="??????")
 def delete_course_document(
-    # 路径变量：课程ID
     course_id: str,
-    # 路径变量：文档唯一source_id
     source_id: str,
-    # 依赖注入：校验当前登录会话，拿到 (user_id, token)，未登录直接401
     session: tuple[str, str] = Depends(current_session),
 ):
-    # 解包会话元组，取出当前登录用户id，丢弃token字段
     user_id, _ = session
     try:
-        # 权限校验：必须是该课程的教师才允许删除文档，学生无权限
         course_store.require_course_teacher(course_id, user_id)
-        # 在SQLite文档元数据表，根据source_id查询文档记录
         document = knowledge_library.get_document(source_id)
-        # 判断：记录不存在，或者文档所属课程和url传入的course_id不一致（防止越权跨课程删文档）
         if not document or document["course_id"] != course_id:
-            raise LookupError("文档不存在")
-    # 捕获查找失败异常：文档找不到，返回404
+            raise LookupError("?????")
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
-    # 捕获权限异常：不是课程老师，返回403禁止访问
     except PermissionError as exc:
         raise HTTPException(status_code=403, detail=str(exc)) from exc
 
-    # ----------------------业务删除逻辑，三层删除：数据库记录、向量库、磁盘文件----------------------
-    # 1. 删除SQLite中的文档元数据记录，返回被删除的文档字典对象
     deleted = knowledge_library.delete_document_record(source_id)
+    if settings.vector_backend.lower() == "qdrant":
+        from app.vectorstores.qdrant_store import delete_by_source_id
+        delete_by_source_id(source_id)
+    else:
+        from langchain_chroma import Chroma
+        from app.models import embeddings
+        db = Chroma(
+            collection_name="scholarflow",
+            embedding_function=embeddings(),
+            persist_directory=settings.vector_db_dir,
+        )
+        db.delete(where={"source_id": source_id})
 
-    # 2. 删除Chroma向量库里该文档全部chunk向量
-    # 函数内部导入，避免全局导入循环依赖；只有走到删除逻辑才加载
-    from langchain_chroma import Chroma
-    from app.models import embeddings
-
-    # 实例化Chroma向量数据库对象
-    db = Chroma(
-        collection_name="scholarflow",   # 使用的向量集合名称
-        embedding_function=embeddings(), # 传入项目配置的embedding模型
-        persist_directory=settings.vector_db_dir, # 向量库本地存储目录，读取配置文件
-    )
-    # 根据metadata的source_id过滤，删除该文档全部向量分片
-    db.delete(where={"source_id": source_id})
-
-    # 3. 删除磁盘上原始上传的文件
-    # 拿到数据库记录里存储的文件路径，转为Path对象
     file_path = Path(deleted["file_path"])
-    # unlink删除文件；missing_ok=True：文件已经不存在也不会抛出异常，防止二次删除报错
     file_path.unlink(missing_ok=True)
-
-    # 返回成功响应，告知前端删除成功信息
-    return {
-        "deleted": True,
-        "source_id": source_id,
-        "filename": deleted["original_name"],
-    }
-
-
-# POST接口：对课程内已上传的文档执行【重新向量化入库】（重新解析、切块、写入向量库）
+    delete_prefix(f"course:{course_id}:")
+    return {"deleted": True, "source_id": source_id, "filename": deleted["original_name"]}
 @app.post("/courses/{course_id}/documents/{source_id}/reingest", tags=["文档管理"], summary="重新入库课程文档")
 def reingest_course_document(
     # 路径参数：课程ID
@@ -613,6 +575,7 @@ def reingest_course_document(
 
     # 更新SQLite文档状态为processing处理中，重置chunk_count为0
     knowledge_library.update_status(source_id, "processing", chunk_count=0)
+    delete_prefix(f"course:{course_id}:")
 
     # 在task_store任务表创建一条异步任务记录，拿到task_id
     task_id = task_store.create_task(
@@ -700,6 +663,8 @@ async def upload_course_document_async(
         owner_user_id=user_id,
     )
 
+    delete_prefix(f"course:{course_id}:")
+    delete_prefix(f"course:{course_id}:")
     background_tasks.add_task(
         run_ingestion_task,
         task_id,
@@ -834,180 +799,129 @@ def ask_course(
     return answer_payload
 
 # PATCH接口：局部更新问答事件处理状态，路径携带课程id和事件id
-@app.patch("/courses/{course_id}/qa-events/{event_id}/status", tags=["问答"], summary="更新问答事件处理状态")
+@app.patch("/courses/{course_id}/qa-events/{event_id}/status", tags=["??"], summary="??????????")
 def update_qa_event_status(
-    # 路径参数：课程ID，标识属于哪一门课程
     course_id: str,
-    # 路径参数：qa_events表里面的事件唯一主键
     event_id: str,
-    # 请求体，FastAPI自动解析前端JSON，QAEventProcessRequest做参数校验（status枚举、note长度）
     request: QAEventProcessRequest,
-    # 依赖注入：校验用户登录会话，返回元组(user_id, token)；未登录直接返回401
     session: tuple[str, str] = Depends(current_session),
 ):
-    # 解包会话元组，拿到当前登录用户id，丢弃token字符串
     user_id, _ = session
     try:
-        # 权限校验：校验该用户是否为本课程老师；只有老师才允许修改事件处理状态
         course_store.require_course_teacher(course_id, user_id)
-        # 调用存储层方法，更新数据库中这条qa_event的process_status、process_note、processed_at
-        qa_event_store.update_process_status(
-            event_id=event_id,
-            status=request.status,
-            note=request.note,
-        )
-    # 捕获LookupError：课程不存在 / event_id事件不存在，返回404
+        qa_event_store.update_process_status(event_id=event_id, status=request.status, note=request.note)
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
-    # 捕获PermissionError：用户不是该课程老师，没有操作权限，返回403禁止访问
     except PermissionError as exc:
         raise HTTPException(status_code=403, detail=str(exc)) from exc
-    # 捕获ValueError：传入非法status状态值，返回400参数错误
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-
-    # 成功响应，返回事件id与更新后的状态
+    delete_prefix(f"course:{course_id}:")
     return {"event_id": event_id, "status": request.status}
-
-# GET接口：获取课程教师仪表盘全部汇总数据
-@app.get("/courses/{course_id}/dashboard", tags=["分析看板"], summary="获取课程看板")
+@app.get("/courses/{course_id}/dashboard", tags=["????"], summary="??????")
 def course_dashboard(course_id: str, session: tuple[str, str] = Depends(current_session)):
-    # 从会话依赖拿到登录用户信息（user_id，token）
     user_id, _ = session
-
     try:
-        # 权限校验：校验当前登录用户必须是该课程教师，普通学生禁止访问仪表盘
         course_store.require_course_teacher(course_id, user_id)
     except LookupError as exc:
-        # LookupError：课程id不存在，返回404
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except PermissionError as exc:
-        # PermissionError：用户不是课程老师，无权限，返回403
         raise HTTPException(status_code=403, detail=str(exc)) from exc
 
-    # 调用知识库存储类，获取文档统计（成功/失败/处理中文档数量）
-    document_data = knowledge_library.document_summary(course_id)
-    # 调用问答事件存储类，获取RAG问答质量统计（问答总数、无引用、低质量、引用率）
-    qa_data = qa_event_store.dashboard_summary(course_id)
-    # 调用反馈存储类，获取点赞点踩反馈统计
-    feedback_data = feedback_store.summary(course_id)
+    cache_key = f"course:{course_id}:dashboard"
+    cached = get_json(cache_key)
+    if cached is not None:
+        return cached
 
-    return {
-        # **字典解包：把document_data字典所有key-value展开合并到返回结果
+    document_data = knowledge_library.document_summary(course_id)
+    qa_data = qa_event_store.dashboard_summary(course_id)
+    feedback_data = feedback_store.summary(course_id)
+    result = {
         **document_data,
-        # 把qa_data字典全部字段合并进来
         **qa_data,
-        # 获取点赞数量，key不存在时默认返回0，防止程序报错
         "feedback_up_count": feedback_data.get("up", 0),
-        # 获取点踩数量，key不存在时默认返回0
         "feedback_down_count": feedback_data.get("down", 0),
     }
-
-# POST接口：提交问答反馈（点赞/点踩），路径携带课程ID
-@app.post("/courses/{course_id}/feedback", tags=["问答"], summary="提交问答反馈")
+    set_json(cache_key, result)
+    return result
+@app.post("/courses/{course_id}/feedback", tags=["??"], summary="??????")
 def create_feedback(
-    # 路径参数：课程id，标识该反馈归属哪一门课程
     course_id: str,
-    # 请求体参数，FastAPI自动解析前端JSON，用FeedbackRequest做参数校验
     request: FeedbackRequest,
-    # 依赖注入：校验用户登录会话，返回元组(user_id, token)，未登录直接返回401
     session: tuple[str, str] = Depends(current_session),
 ):
-    # 解包会话元组，拿到当前登录用户id，丢弃token
     user_id, _ = session
     try:
-        # 权限校验：判断该用户是否有权访问这门课程（学生/老师都可以提交反馈）
         course_store.require_course_access(course_id, user_id)
-    # 捕获LookupError：课程不存在，返回404
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
-    # 捕获PermissionError：用户没有课程访问权限，返回403禁止访问
     except PermissionError as exc:
         raise HTTPException(status_code=403, detail=str(exc)) from exc
 
     try:
-        # 调用存储层方法，往sqlite写入一条反馈记录，返回新生成的feedback_id
         feedback_id = feedback_store.create_feedback(
-            course_id=course_id,        # 课程id
-            user_id=user_id,            # 提交反馈的用户id
-            thread_id=request.thread_id,# 对话会话id，取自请求体
-            question=request.question,  # 用户提问，取自请求体
-            answer=request.answer,      # AI回答内容，取自请求体
-            rating=request.rating,      # up/down 点赞/点踩
-            reason=request.reason,      # 点踩原因
-            comment=request.comment,    # 用户附加评论
+            course_id=course_id,
+            user_id=user_id,
+            thread_id=request.thread_id,
+            question=request.question,
+            answer=request.answer,
+            rating=request.rating,
+            reason=request.reason,
+            comment=request.comment,
         )
-    # 捕获ValueError：例如rating不是up/down的非法情况，返回400参数错误
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    # 成功响应，返回反馈id与状态
+    delete_prefix(f"course:{course_id}:")
     return {"feedback_id": feedback_id, "status": "ok"}
-
-@app.get("/courses/{course_id}/analytics/top-questions", tags=["分析看板"], summary="查看高频问题")
+@app.get("/courses/{course_id}/analytics/top-questions", tags=["????"], summary="??????")
 def top_questions(course_id: str, session: tuple[str, str] = Depends(current_session)):
-    """
-    获取课程高频提问统计接口
-    仅课程教师有权限访问，返回该课程被提问次数最多的问题列表
-    """
-    # 解包会话，获取登录用户ID；_丢弃token
     user_id, _ = session
     try:
-        # 权限校验：校验当前用户必须是该课程的教师，学生不允许访问分析数据
         course_store.require_course_teacher(course_id, user_id)
     except LookupError as exc:
-        # 捕获异常：course_id对应的课程不存在，返回404；from exc保留原始异常堆栈用于日志
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except PermissionError as exc:
-        # 捕获异常：课程存在，但用户不是教师，没有查看分析数据的权限，返回403
         raise HTTPException(status_code=403, detail=str(exc)) from exc
-    # 调用存储层方法查询高频问题，包装成{"items": [...]}返回给前端
-    return {"items": qa_event_store.top_questions(course_id)}
-
-
-@app.get("/courses/{course_id}/analytics/no-citation", tags=["分析看板"], summary="查看无引用问题")
+    cache_key = f"course:{course_id}:analytics:top_questions"
+    cached = get_json(cache_key)
+    if cached is not None:
+        return cached
+    result = {"items": qa_event_store.top_questions(course_id)}
+    set_json(cache_key, result)
+    return result
+@app.get("/courses/{course_id}/analytics/no-citation", tags=["????"], summary="???????")
 def no_citation_questions(course_id: str, session: tuple[str, str] = Depends(current_session)):
-    """
-    获取零引用问答记录接口
-    查询回答没有携带任何知识库引用的问答，用于排查RAG幻觉、召回失效问题
-    仅课程教师可访问
-    """
     user_id, _ = session
     try:
-        # 校验用户身份必须为本课程教师
         course_store.require_course_teacher(course_id, user_id)
     except LookupError as exc:
-        # 课程不存在 → 404
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except PermissionError as exc:
-        # 用户权限不足 →403
         raise HTTPException(status_code=403, detail=str(exc)) from exc
-    # 查询citation_count=0的问答事件，返回给前端
-    return {"items": qa_event_store.no_citation_questions(course_id)}
-
-
-@app.get("/courses/{course_id}/analytics/low-quality", tags=["分析看板"], summary="查看低质量问题")
+    cache_key = f"course:{course_id}:analytics:no_citation"
+    cached = get_json(cache_key)
+    if cached is not None:
+        return cached
+    result = {"items": qa_event_store.no_citation_questions(course_id)}
+    set_json(cache_key, result)
+    return result
+@app.get("/courses/{course_id}/analytics/low-quality", tags=["????"], summary="???????")
 def low_quality_questions(course_id: str, session: tuple[str, str] = Depends(current_session)):
-    """
-    获取低质量问答记录接口
-    查询评估不通过 / 质量分数低 / 存在报错的问答样本，帮助老师定位RAG系统问题
-    仅课程教师可访问
-    """
     user_id, _ = session
     try:
-        # 校验当前登录用户是该课程教师
         course_store.require_course_teacher(course_id, user_id)
     except LookupError as exc:
-        # 课程找不到返回404
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except PermissionError as exc:
-        # 不是教师，禁止访问分析数据返回403
         raise HTTPException(status_code=403, detail=str(exc)) from exc
-    # 查询低质量问答事件，包装返回
-    return {"items": qa_event_store.low_quality_questions(course_id)}
-
-
-
+    cache_key = f"course:{course_id}:analytics:low_quality"
+    cached = get_json(cache_key)
+    if cached is not None:
+        return cached
+    result = {"items": qa_event_store.low_quality_questions(course_id)}
+    set_json(cache_key, result)
+    return result
 @app.post("/courses/{course_id}/retrieval/debug", tags=["检索调试"], summary="检索调试")
 def retrieval_debug(
     course_id: str,                          # 路径参数：目标课程ID

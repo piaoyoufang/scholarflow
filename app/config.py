@@ -22,6 +22,15 @@ class Settings(BaseSettings):
     vector_db_dir: str = "./data/chroma"
     checkpoint_db_path: str = "./data/memory/checkpoints.sqlite"
     auth_db_path: str = "./data/auth/auth.sqlite"
+    relational_backend: str = "mysql"
+    database_url: str = "mysql+pymysql://scholarflow:scholarflow_pwd@127.0.0.1:3306/scholarflow?charset=utf8mb4"
+    redis_url: str = "redis://127.0.0.1:6379/0"
+    cache_ttl_seconds: int = 300
+    vector_backend: str = "qdrant"
+    qdrant_url: str = "local"
+    qdrant_path: str = "./data/qdrant_local"
+    qdrant_collection: str = "scholarflow_chunks"
+    qdrant_vector_size: int = 1024
     api_base_url: str = "http://127.0.0.1:8000"
     access_token_ttl_minutes: int = 15
     refresh_token_ttl_days: int = 30

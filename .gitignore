@@ -17,3 +17,5 @@ reports/*.csv
 # local sqlite runtime databases
 data/**/*.sqlite
 data/**/*.sqlite3
+
+data/qdrant_local/

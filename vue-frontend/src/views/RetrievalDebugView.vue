@@ -1,0 +1,7 @@
+﻿<template><div><h1 class="page-title">检索可视化</h1><p class="page-desc">教师可查看检索召回和排序过程，定位知识库命中效果。</p><div v-if="!auth.hasCourse" class="empty-state">请先选择课程。</div><el-card v-else class="panel-card"><el-input v-model="query" placeholder="例如：RAG 的核心流程是什么？" /><el-button type="primary" :loading="loading" @click="debug">查看召回结果</el-button></el-card><el-card v-if="result" class="panel-card"><el-table v-if="rows.length" :data="rows" stripe style="width:100%"/><pre>{{ result }}</pre></el-card></div></template>
+<script setup>
+import { computed, ref } from 'vue'; import { ElMessage } from 'element-plus'; import { courseApi } from '../api'; import { errorMessage } from '../api/request'; import { useAuthStore } from '../stores/auth'
+const auth=useAuthStore(); const query=ref(''); const loading=ref(false); const result=ref(null); const rows=computed(()=>result.value?.items||result.value?.results||result.value?.documents||[])
+async function debug(){ if(!query.value.trim()) return ElMessage.error('检索问题不能为空'); loading.value=true; try{ const {data}=await courseApi.retrievalDebug(auth.currentCourseId,{question:query.value.trim(),thread_id:auth.threadId}); result.value=data }catch(e){ ElMessage.error(errorMessage(e)) }finally{ loading.value=false } }
+</script>
+<style scoped>.panel-card{margin-bottom:18px}.el-input{margin-bottom:12px}pre{white-space:pre-wrap;color:#0f172a;background:#f8fafc;padding:14px;border-radius:12px}</style>

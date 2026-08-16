@@ -16,7 +16,6 @@
         <el-menu-item index="/learning-plan">学习计划</el-menu-item>
         <el-menu-item index="/quiz">自动出题</el-menu-item>
         <el-menu-item index="/retrieval-debug">检索可视化</el-menu-item>
-        <el-menu-item index="/tasks">上传任务</el-menu-item>
         <el-menu-item index="/analytics">问答分析</el-menu-item>
         <el-menu-item index="/dashboard">课程看板</el-menu-item>
       </el-menu>

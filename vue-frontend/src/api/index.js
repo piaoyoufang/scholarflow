@@ -39,7 +39,3 @@ export const courseApi = {
   lowQuality: (courseId) => request.get(`/courses/${courseId}/analytics/low-quality`),
   updateQaEventStatus: (courseId, eventId, payload) => request.patch(`/courses/${courseId}/qa-events/${eventId}/status`, payload)
 }
-
-export const taskApi = {
-  detail: (taskId) => request.get(`/tasks/${taskId}`)
-}

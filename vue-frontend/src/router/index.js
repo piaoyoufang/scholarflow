@@ -8,7 +8,6 @@ import ChatView from '../views/ChatView.vue'
 import LearningPlanView from '../views/LearningPlanView.vue'
 import QuizView from '../views/QuizView.vue'
 import RetrievalDebugView from '../views/RetrievalDebugView.vue'
-import TasksView from '../views/TasksView.vue'
 import AnalyticsView from '../views/AnalyticsView.vue'
 import DashboardView from '../views/DashboardView.vue'
 
@@ -28,7 +27,7 @@ const router = createRouter({
         { path: 'learning-plan', name: 'learning-plan', component: LearningPlanView, meta: { title: '学习计划' } },
         { path: 'quiz', name: 'quiz', component: QuizView, meta: { title: '自动出题' } },
         { path: 'retrieval-debug', name: 'retrieval-debug', component: RetrievalDebugView, meta: { title: '检索可视化' } },
-        { path: 'tasks', name: 'tasks', component: TasksView, meta: { title: '上传任务' } },
+        { path: 'tasks', redirect: '/documents' },
         { path: 'analytics', name: 'analytics', component: AnalyticsView, meta: { title: '问答分析' } },
         { path: 'dashboard', name: 'dashboard', component: DashboardView, meta: { title: '课程看板' } }
       ]

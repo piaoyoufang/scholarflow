@@ -14,7 +14,6 @@ export const useAuthStore = defineStore('auth', {
     currentCourseName: '',
     currentCourseRole: '',
     threadId: v4Like(),
-    lastTaskId: '',
     lastQuestion: '',
     lastAnswer: '',
     messages: []
@@ -47,7 +46,6 @@ export const useAuthStore = defineStore('auth', {
         currentCourseName: this.currentCourseName,
         currentCourseRole: this.currentCourseRole,
         threadId: this.threadId,
-        lastTaskId: this.lastTaskId,
         lastQuestion: this.lastQuestion,
         lastAnswer: this.lastAnswer,
         messages: this.messages

@@ -15,11 +15,18 @@
         <el-card v-for="doc in documents" :key="doc.source_id" class="doc-card">
           <h3>{{ doc.original_name }}</h3>
           <p>状态：{{ doc.status }} ｜ 类型：{{ doc.file_type || '未知' }} ｜ 切片：{{ doc.chunk_count || 0 }}</p>
-          <p class="id">{{ doc.source_id }}</p>
           <div class="actions"><el-button @click="reingest(doc)">重新入库</el-button><el-button type="danger" plain @click="remove(doc)">删除资料</el-button></div>
         </el-card>
       </div>
-      <el-card v-if="documents.length" class="panel-card table-card"><el-table :data="documents" stripe style="width:100%" /></el-card>
+      <el-card v-if="documents.length" class="panel-card table-card">
+        <el-table :data="documents" stripe style="width:100%">
+          <el-table-column prop="original_name" label="文件名称" min-width="220" show-overflow-tooltip />
+          <el-table-column prop="status" label="状态" width="120" />
+          <el-table-column prop="file_type" label="类型" width="100" />
+          <el-table-column prop="chunk_count" label="切片数" width="100" />
+          <el-table-column prop="created_at" label="上传时间" min-width="180" show-overflow-tooltip />
+        </el-table>
+      </el-card>
     </template>
   </div>
 </template>
@@ -38,4 +45,4 @@ async function reingest(doc){ try{ const {data}=await courseApi.reingestDocument
 async function remove(doc){ await ElMessageBox.confirm('确认删除该资料？','删除资料'); try{ await courseApi.deleteDocument(auth.currentCourseId,doc.source_id); ElMessage.success('资料已删除'); await loadDocuments() }catch(e){ ElMessage.error(errorMessage(e)) } }
 onMounted(loadDocuments)
 </script>
-<style scoped>.panel-card{margin-bottom:20px}.upload-text{color:#475569}.toolbar{color:#fff}.toolbar h2{margin:0}.doc-card h3{margin:0 0 10px;color:#0f172a}.doc-card p{color:#64748b}.id{font-size:12px;word-break:break-all}.actions{display:flex;gap:10px;margin-top:14px}.table-card{margin-top:18px}</style>
+<style scoped>.panel-card{margin-bottom:20px}.upload-text{color:#475569}.toolbar{color:#fff}.toolbar h2{margin:0}.doc-card h3{margin:0 0 10px;color:#0f172a}.doc-card p{color:#64748b}.actions{display:flex;gap:10px;margin-top:14px}.table-card{margin-top:18px}</style>

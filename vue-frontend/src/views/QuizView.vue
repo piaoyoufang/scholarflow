@@ -1,13 +1,139 @@
-﻿<template>
+<template>
   <div>
-    <h1 class="page-title">自动出题</h1><p class="page-desc">围绕指定主题自动生成选择题、判断题、简答题或面试题。</p>
+    <h1 class="page-title">自动出题</h1>
+    <p class="page-desc">围绕指定主题自动生成选择题、判断题、简答题或面试题。</p>
+
     <div v-if="!auth.hasCourse" class="empty-state">请先选择课程。</div>
-    <el-card v-else class="panel-card"><el-form :model="form" label-position="top"><el-form-item label="出题主题"><el-input v-model="form.topic" placeholder="例如：RAG 检索增强生成" /></el-form-item><div class="grid grid-3"><el-form-item label="题目数量"><el-input-number v-model="form.question_count" :min="1" :max="20" /></el-form-item><el-form-item label="题型"><el-select v-model="form.question_type"><el-option label="single_choice" value="single_choice"/><el-option label="true_false" value="true_false"/><el-option label="short_answer" value="short_answer"/><el-option label="interview" value="interview"/></el-select></el-form-item><el-form-item label="难度"><el-select v-model="form.difficulty"><el-option label="easy" value="easy"/><el-option label="medium" value="medium"/><el-option label="hard" value="hard"/></el-select></el-form-item></div><el-button type="primary" :loading="loading" @click="generate">生成题目</el-button></el-form></el-card>
-    <el-collapse v-if="items.length"><el-collapse-item v-for="(it,i) in items" :key="i" :title="`第 ${i+1} 题：${it.question || ''}`"><ul><li v-for="(op,j) in it.options || []" :key="j">{{ op }}</li></ul><p><b>参考答案：</b>{{ it.answer }}</p><p><b>解析：</b>{{ it.explanation }}</p></el-collapse-item></el-collapse>
+
+    <el-card v-else class="panel-card quiz-form-card">
+      <el-form :model="form" label-position="top">
+        <el-form-item label="出题主题">
+          <el-input v-model="form.topic" placeholder="例如：RAG 检索增强生成" />
+        </el-form-item>
+
+        <div class="grid grid-3">
+          <el-form-item label="题目数量">
+            <el-input-number v-model="form.question_count" :min="1" :max="20" />
+          </el-form-item>
+          <el-form-item label="题型">
+            <el-select v-model="form.question_type" placeholder="请选择题型">
+              <el-option v-for="item in typeOptions" :key="item.value" :label="item.label" :value="item.value" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="难度">
+            <el-select v-model="form.difficulty" placeholder="请选择难度">
+              <el-option v-for="item in difficultyOptions" :key="item.value" :label="item.label" :value="item.value" />
+            </el-select>
+          </el-form-item>
+        </div>
+
+        <el-button type="primary" :loading="loading" @click="generate">生成题目</el-button>
+      </el-form>
+    </el-card>
+
+    <section v-if="items.length" class="result-section">
+      <div class="result-header">
+        <div>
+          <h2>生成的题目</h2>
+          <p>共 {{ items.length }} 道题，可用于课堂练习、课后复习或面试准备。</p>
+        </div>
+        <el-tag effect="plain" round>{{ questionTypeLabel }} · {{ difficultyLabel }}</el-tag>
+      </div>
+
+      <div class="question-list">
+        <el-card v-for="(it, i) in items" :key="i" class="question-card">
+          <div class="question-top">
+            <span class="question-index">第 {{ i + 1 }} 题</span>
+            <el-tag size="small" effect="plain">{{ questionTypeLabel }}</el-tag>
+          </div>
+
+          <h3>{{ it.question || '未命名题目' }}</h3>
+
+          <ul v-if="(it.options || []).length" class="option-list">
+            <li v-for="(op, j) in it.options || []" :key="j">
+              <span>{{ optionLetter(j) }}</span>
+              <p>{{ op }}</p>
+            </li>
+          </ul>
+
+          <div class="answer-grid">
+            <div class="answer-box">
+              <b>参考答案</b>
+              <p>{{ it.answer || '暂无' }}</p>
+            </div>
+            <div v-if="it.explanation" class="answer-box explanation">
+              <b>解析</b>
+              <p>{{ it.explanation }}</p>
+            </div>
+          </div>
+        </el-card>
+      </div>
+    </section>
   </div>
 </template>
+
 <script setup>
-import { reactive, ref } from 'vue'; import { ElMessage } from 'element-plus'; import { courseApi } from '../api'; import { errorMessage } from '../api/request'; import { useAuthStore } from '../stores/auth'
-const auth=useAuthStore(); const loading=ref(false); const items=ref([]); const form=reactive({topic:'',question_count:5,question_type:'single_choice',difficulty:'easy'})
-async function generate(){ if(!form.topic.trim()) return ElMessage.error('出题主题不能为空'); loading.value=true; try{ const {data}=await courseApi.quiz(auth.currentCourseId,{...form,topic:form.topic.trim()}); items.value=data.items||[]; ElMessage.success('题目生成成功') }catch(e){ ElMessage.error(errorMessage(e)) }finally{ loading.value=false } }
+import { computed, reactive, ref } from 'vue'
+import { ElMessage } from 'element-plus'
+import { courseApi } from '../api'
+import { errorMessage } from '../api/request'
+import { useAuthStore } from '../stores/auth'
+
+const auth = useAuthStore()
+const loading = ref(false)
+const items = ref([])
+const form = reactive({ topic: '', question_count: 5, question_type: 'single_choice', difficulty: 'easy' })
+const typeOptions = [
+  { label: '单选题', value: 'single_choice' },
+  { label: '判断题', value: 'true_false' },
+  { label: '简答题', value: 'short_answer' },
+  { label: '面试题', value: 'interview' }
+]
+const difficultyOptions = [
+  { label: '简单', value: 'easy' },
+  { label: '中等', value: 'medium' },
+  { label: '困难', value: 'hard' }
+]
+const questionTypeLabel = computed(() => typeOptions.find((item) => item.value === form.question_type)?.label || '题目')
+const difficultyLabel = computed(() => difficultyOptions.find((item) => item.value === form.difficulty)?.label || '难度')
+
+function optionLetter(index) {
+  return String.fromCharCode(65 + index)
+}
+
+async function generate() {
+  if (!form.topic.trim()) return ElMessage.error('出题主题不能为空')
+  loading.value = true
+  try {
+    const { data } = await courseApi.quiz(auth.currentCourseId, { ...form, topic: form.topic.trim() })
+    items.value = data.items || []
+    ElMessage.success('题目生成成功')
+  } catch (e) {
+    ElMessage.error(errorMessage(e))
+  } finally {
+    loading.value = false
+  }
+}
 </script>
+
+<style scoped>
+.quiz-form-card { margin-bottom: 22px; }
+.result-section { margin-top: 20px; }
+.result-header { display: flex; justify-content: space-between; gap: 16px; align-items: flex-end; margin-bottom: 16px; color: #fff; }
+.result-header h2 { margin: 0 0 6px; font-size: 22px; font-weight: 900; }
+.result-header p { margin: 0; color: #cbd5e1; }
+.question-list { display: grid; gap: 16px; }
+.question-card { border-radius: 22px; border: 1px solid rgba(96,165,250,.28); background: linear-gradient(135deg, rgba(15,23,42,.92), rgba(15,23,42,.78)); box-shadow: 0 16px 36px rgba(15,23,42,.28); }
+.question-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.question-index { display: inline-flex; height: 28px; align-items: center; padding: 0 12px; border-radius: 999px; background: rgba(37,99,235,.16); color: #93c5fd; font-size: 12px; font-weight: 900; border: 1px solid rgba(96,165,250,.28); }
+.question-card h3 { margin: 14px 0 14px; color: #f8fafc; font-size: 18px; line-height: 1.7; font-weight: 900; }
+.option-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; }
+.option-list li { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border-radius: 14px; background: rgba(255,255,255,.04); border: 1px solid rgba(148,163,184,.14); }
+.option-list span { flex: 0 0 24px; width: 24px; height: 24px; display: grid; place-items: center; border-radius: 999px; background: #2563eb; color: #fff; font-size: 12px; font-weight: 900; }
+.option-list p { margin: 0; color: #e2e8f0; line-height: 1.7; }
+.answer-grid { display: grid; gap: 12px; margin-top: 14px; }
+.answer-box { padding: 12px 14px; border-radius: 16px; background: rgba(14,165,233,.10); border: 1px solid rgba(14,165,233,.24); }
+.answer-box b { color: #93c5fd; }
+.answer-box p { margin: 6px 0 0; color: #e2e8f0; line-height: 1.7; }
+.answer-box.explanation { background: rgba(34,197,94,.08); border-color: rgba(34,197,94,.20); }
+</style>

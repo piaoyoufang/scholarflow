@@ -88,7 +88,7 @@ logger = get_logger("api")
 
 # 初始化后端API服务实例，设置接口文档标题
 app = FastAPI(
-    title="ScholarFlow",
+    title="高校课程AI学习助手平台",
     openapi_tags=[
         {"name": "系统", "description": "服务首页、健康检查、存活检查和就绪检查。"},
         {"name": "认证", "description": "注册、登录、刷新令牌和退出登录。"},
@@ -417,7 +417,7 @@ def logout_account(
 
 
 # 创建课程接口 POST /courses
-@app.post("/courses", tags=["????"], summary="????")
+@app.post("/courses", tags=["课程管理"], summary="创建课程")
 def create_course(
     request: CourseCreateRequest,
     session: tuple[str, str] = Depends(current_session),
@@ -430,7 +430,7 @@ def create_course(
     )
     delete_prefix(f"user:{user_id}:courses")
     return {"course": course.__dict__}
-@app.get("/courses", tags=["????"], summary="??????")
+@app.get("/courses", tags=["课程管理"], summary="获取课程列表")
 def list_courses(session: tuple[str, str] = Depends(current_session)):
     user_id, _ = session
     cache_key = f"user:{user_id}:courses"
@@ -440,7 +440,7 @@ def list_courses(session: tuple[str, str] = Depends(current_session)):
     result = {"courses": course_store.list_user_courses(user_id)}
     set_json(cache_key, result)
     return result
-@app.get("/courses/{course_id}", tags=["????"], summary="??????")
+@app.get("/courses/{course_id}", tags=["课程管理"], summary="获取课程详情")
 def get_course(course_id: str, session: tuple[str, str] = Depends(current_session)):
     user_id, _ = session
     try:
@@ -456,7 +456,7 @@ def get_course(course_id: str, session: tuple[str, str] = Depends(current_sessio
     result = {"course": course_store.get_course(course_id)}
     set_json(cache_key, result)
     return result
-@app.post("/courses/{course_id}/members", tags=["????"], summary="??????")
+@app.post("/courses/{course_id}/members", tags=["课程管理"], summary="添加课程成员")
 def add_course_member(
     course_id: str,
     request: CourseMemberAddRequest,
@@ -504,7 +504,7 @@ def list_course_documents(course_id: str, session: tuple[str, str] = Depends(cur
     return {"documents": knowledge_library.list_course_documents(course_id)}
 
 # 定义DELETE接口：删除课程下指定文档，路径参数：课程id、文档source_id
-@app.delete("/courses/{course_id}/documents/{source_id}", tags=["????"], summary="??????")
+@app.delete("/courses/{course_id}/documents/{source_id}", tags=["文档管理"], summary="删除课程文档")
 def delete_course_document(
     course_id: str,
     source_id: str,
@@ -515,7 +515,7 @@ def delete_course_document(
         course_store.require_course_teacher(course_id, user_id)
         document = knowledge_library.get_document(source_id)
         if not document or document["course_id"] != course_id:
-            raise LookupError("?????")
+            raise LookupError("文档不存在")
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except PermissionError as exc:
@@ -799,7 +799,7 @@ def ask_course(
     return answer_payload
 
 # PATCH接口：局部更新问答事件处理状态，路径携带课程id和事件id
-@app.patch("/courses/{course_id}/qa-events/{event_id}/status", tags=["??"], summary="??????????")
+@app.patch("/courses/{course_id}/qa-events/{event_id}/status", tags=["问答"], summary="更新问答事件处理状态")
 def update_qa_event_status(
     course_id: str,
     event_id: str,
@@ -818,7 +818,7 @@ def update_qa_event_status(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     delete_prefix(f"course:{course_id}:")
     return {"event_id": event_id, "status": request.status}
-@app.get("/courses/{course_id}/dashboard", tags=["????"], summary="??????")
+@app.get("/courses/{course_id}/dashboard", tags=["分析看板"], summary="获取课程看板")
 def course_dashboard(course_id: str, session: tuple[str, str] = Depends(current_session)):
     user_id, _ = session
     try:
@@ -844,7 +844,7 @@ def course_dashboard(course_id: str, session: tuple[str, str] = Depends(current_
     }
     set_json(cache_key, result)
     return result
-@app.post("/courses/{course_id}/feedback", tags=["??"], summary="??????")
+@app.post("/courses/{course_id}/feedback", tags=["问答"], summary="提交问答反馈")
 def create_feedback(
     course_id: str,
     request: FeedbackRequest,
@@ -874,7 +874,7 @@ def create_feedback(
 
     delete_prefix(f"course:{course_id}:")
     return {"feedback_id": feedback_id, "status": "ok"}
-@app.get("/courses/{course_id}/analytics/top-questions", tags=["????"], summary="??????")
+@app.get("/courses/{course_id}/analytics/top-questions", tags=["分析看板"], summary="获取高频问题")
 def top_questions(course_id: str, session: tuple[str, str] = Depends(current_session)):
     user_id, _ = session
     try:
@@ -890,7 +890,7 @@ def top_questions(course_id: str, session: tuple[str, str] = Depends(current_ses
     result = {"items": qa_event_store.top_questions(course_id)}
     set_json(cache_key, result)
     return result
-@app.get("/courses/{course_id}/analytics/no-citation", tags=["????"], summary="???????")
+@app.get("/courses/{course_id}/analytics/no-citation", tags=["分析看板"], summary="获取无引用问题")
 def no_citation_questions(course_id: str, session: tuple[str, str] = Depends(current_session)):
     user_id, _ = session
     try:
@@ -906,7 +906,7 @@ def no_citation_questions(course_id: str, session: tuple[str, str] = Depends(cur
     result = {"items": qa_event_store.no_citation_questions(course_id)}
     set_json(cache_key, result)
     return result
-@app.get("/courses/{course_id}/analytics/low-quality", tags=["????"], summary="???????")
+@app.get("/courses/{course_id}/analytics/low-quality", tags=["分析看板"], summary="获取低质量问题")
 def low_quality_questions(course_id: str, session: tuple[str, str] = Depends(current_session)):
     user_id, _ = session
     try:

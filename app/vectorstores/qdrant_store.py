@@ -58,16 +58,27 @@ def _course_filter(course_id: str | None = None, source_id: str | None = None) -
 
 def search_by_vector(query_vector: list[float], k: int, course_id: str | None = None) -> list[tuple[Document, float]]:
     ensure_collection()
-    hits = client.search(
-        collection_name=settings.qdrant_collection,
-        query_vector=query_vector,
-        query_filter=_course_filter(course_id=course_id),
-        limit=k,
-        with_payload=True,
-    )
+    query_filter = _course_filter(course_id=course_id)
+    if hasattr(client, "search"):
+        hits = client.search(
+            collection_name=settings.qdrant_collection,
+            query_vector=query_vector,
+            query_filter=query_filter,
+            limit=k,
+            with_payload=True,
+        )
+    else:
+        response = client.query_points(
+            collection_name=settings.qdrant_collection,
+            query=query_vector,
+            query_filter=query_filter,
+            limit=k,
+            with_payload=True,
+        )
+        hits = response.points if hasattr(response, "points") else response
     results = []
     for hit in hits:
-        payload = hit.payload or {}
+        payload = dict(hit.payload or {})
         text = str(payload.pop("text", ""))
         results.append((Document(page_content=text, metadata=payload), float(hit.score)))
     return results
@@ -84,7 +95,7 @@ def list_documents(course_id: str | None = None, limit: int = 10000) -> list[Doc
     )
     docs = []
     for point in points:
-        payload = point.payload or {}
+        payload = dict(point.payload or {})
         text = str(payload.pop("text", ""))
         docs.append(Document(page_content=text, metadata=payload))
     return docs

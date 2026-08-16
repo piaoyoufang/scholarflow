@@ -1,82 +1,240 @@
-﻿# ScholarFlow｜AI 课程知识库与学习助手
+﻿# 高校课程 AI 学习助手平台
 
-ScholarFlow 是一个面向高校课程、职业培训和企业内训场景的 AI 课程知识库与学习助手系统。
-老师可以创建课程并上传 PDF / Markdown / TXT 课程资料，系统自动构建课程知识库；学生可以基于课程资料进行带引用问答、生成学习计划和练习题；管理员和老师可以通过评估与诊断能力检查 AI 回答质量。
-系统重点解决：
-- 课程资料分散，人工查找效率低；
-- 老师和助教重复答疑成本高；
-- 普通大模型不知道课程私有资料；
-- AI 回答缺少引用依据，学习场景不容易信任；
-- 学生缺少系统学习路径和练习题；
-- AI 助教回答质量缺少评估和诊断。
+高校课程 AI 学习助手平台是一个面向高校课程资料管理、课程知识库问答和教学质量分析的 AI 应用开发项目。项目采用 FastAPI 后端 + Vue3 前端的前后端分离架构，围绕“课程资料入库、RAG 智能问答、引用溯源、学习 Agent、自动出题、教师分析看板”构建完整的课程学习闭环。
 
-## 业务背景
+本项目原型阶段使用 Streamlit 快速验证业务流程，目前已迁移为 Vue3 + Element Plus 的后台管理式单页应用，更适合作为简历展示和服务器部署项目。
 
-真实学习场景里，课程资料往往分散在多个文件中，人工查找效率低，老师和助教也会反复回答相似问题。
-普通大模型不知道课程私有资料，容易出现没有引用依据的回答。
-ScholarFlow 通过 RAG、Agent 和评估闭环，把“资料管理、问答学习、质量验证”串成一个完整系统。
+## 项目亮点
 
-## 核心角色
+- **真实前后端分离**：Vue3 单页应用通过 axios 调用 FastAPI REST 接口，开发环境使用 Vite Proxy 转发到后端。
+- **登录鉴权闭环**：后端提供注册、登录、刷新 Token、退出登录能力，前端使用 Pinia 保存登录态并自动携带 Bearer Token。
+- **课程级知识库**：支持创建课程、选择当前课程、上传课程资料并构建课程知识库。
+- **RAG 智能问答**：基于课程资料进行问答，支持多轮会话、引用来源拼接与 Markdown 渲染。
+- **学习 Agent 能力**：支持生成学习计划、自动出题、检索可视化和回答反馈。
+- **教师数据分析**：提供高频问题、无引用问题、低质量问题和课程看板，辅助教师优化课程资料。
+- **工程化部署**：支持 MySQL、Redis、Docker Compose、GitHub Actions CI 和生产环境配置模板。
 
-- **admin**：管理用户、课程、评估、诊断和系统状态。
-- **teacher**：创建课程、上传资料、管理知识库、查看评估报告。
-- **student**：加入课程、基于资料问答、生成学习计划、自动出题。
+## 技术栈
 
-## 核心能力
+### 后端
 
-- 课程级资料上传与知识库管理
-- Chroma 向量检索 + BM25 混合召回 + Rerank 精排
-- 课程级问答与引用来源追踪
-- 多轮对话记忆与线程隔离
-- 学习计划 Agent
-- 自动出题 Agent
-- LLM-as-Judge 评估
-- 诊断 Agent 与运行监控
-- Docker Compose 部署
+- Python 3.11
+- FastAPI
+- Pydantic / pydantic-settings
+- MySQL
+- Redis
+- Qdrant / Chroma 向量检索能力
+- BM25 + 向量检索 + Rerank 混合检索流程
+- LangGraph / Agent 工作流
+- Docker / Docker Compose
 
-## 目录说明
+### 前端
+
+- Vue3
+- Vite
+- Element Plus
+- Pinia
+- vue-router@4
+- axios
+- markdown-it
+- unplugin-vue-markdown
+
+## 核心功能
+
+### 1. 账号与权限
+
+- 用户注册、登录、退出登录
+- Bearer Token 鉴权
+- Token 过期后的统一处理
+- 课程角色区分：教师、学生、助教、管理员
+
+### 2. 课程管理
+
+- 创建课程
+- 查看课程列表
+- 选择当前课程
+- 课程角色标签展示
+- 课程看板入口
+
+### 3. 课程知识库
+
+- 上传课程资料
+- 查询资料列表
+- 重新入库
+- 删除资料
+- 查看上传任务状态
+
+### 4. AI 问答
+
+- 基于当前课程资料进行 RAG 问答
+- 支持多轮会话 thread_id
+- AI 回答支持 Markdown 渲染
+- 引用来源自动附加展示
+- 支持点赞、点踩与低质量反馈
+
+### 5. 学习辅助 Agent
+
+- 根据学习目标生成学习计划
+- 根据课程主题自动生成练习题
+- 检索过程可视化调试
+
+### 6. 教师分析看板
+
+- 课程资料统计
+- 问答总量统计
+- 引用率统计
+- 高频问题分析
+- 无引用问题分析
+- 低质量问题处理
+
+## 项目目录
 
 ```text
 scholarflow/
-├─ app/          # 后端核心代码
-├─ data/         # SQLite、向量库、上传文件、记忆数据
-├─ docs/         # 验收记录和开发文档
-├─ scripts/      # 命令行测试与验收脚本
-├─ tests/        # 自动化测试
-├─ ui.py         # Streamlit 前端
+├─ app/                         # FastAPI 后端核心代码
+│  ├─ agents/                   # 学习计划、自动出题、诊断等 Agent
+│  ├─ analytics/                # 问答分析与统计
+│  ├─ courses/                  # 课程存储与成员关系
+│  ├─ evaluation/               # 回答质量评估
+│  ├─ feedback/                 # 点赞、点踩和反馈记录
+│  ├─ graph/                    # LangGraph 工作流
+│  ├─ ingestion/                # 文档加载与入库
+│  ├─ knowledge/                # 课程知识库管理
+│  ├─ retrieval/                # 混合检索、重排和调试
+│  ├─ storage/                  # 数据库存储适配
+│  ├─ api.py                    # FastAPI REST 接口入口
+│  ├─ config.py                 # 配置管理
+│  └─ security.py               # 登录鉴权与 Token 管理
+├─ vue-frontend/                # Vue3 前端项目
+│  ├─ src/
+│  │  ├─ api/                   # axios 请求封装与接口调用
+│  │  ├─ components/            # Markdown 渲染等公共组件
+│  │  ├─ layouts/               # 后台主布局
+│  │  ├─ router/                # vue-router 路由
+│  │  ├─ stores/                # Pinia 全局状态
+│  │  ├─ styles/                # 全局主题样式
+│  │  └─ views/                 # 登录、课程、知识库、问答、看板页面
+│  ├─ package.json
+│  └─ vite.config.js
+├─ scripts/                     # 本地测试、发布检查和验收脚本
+├─ tests/                       # 自动化测试
+├─ docs/                        # 项目文档与验收记录
+├─ data/                        # 本地运行数据目录，默认不提交
+├─ ui.py                        # Streamlit 原型前端，保留用于对照演示
 ├─ Dockerfile
-└─ docker-compose.yml
+├─ docker-compose.yml
+├─ requirements.txt
+├─ requirements.lock.txt
+└─ README.md
 ```
 
-## 开发顺序
+## 本地开发启动
 
-1. 先完成课程和角色基础
-2. 再做课程级知识库管理
-3. 再做异步上传和任务状态
-4. 再做课程级 RAG 问答
-5. 再做检索可视化
-6. 再做评估、学习计划和自动出题
-7. 最后做监控、诊断和前端重构
+### 1. 启动后端依赖
 
-## 运行方式
+如果使用 MySQL 和 Redis，可以先启动容器服务：
+
+```powershell
+docker compose up -d mysql redis
+```
+
+### 2. 安装后端依赖
 
 ```powershell
 cd D:\python\ai-project\scholarflow
 python -m pip install -r requirements.txt
-uvicorn app.api:app --reload
 ```
 
-前端：
+### 3. 启动 FastAPI 后端
 
 ```powershell
-streamlit run ui.py
+uvicorn app.api:app --reload --host 127.0.0.1 --port 8000
 ```
 
-## 当前状态
+后端接口文档：
 
-- v1.1.0 基础能力已完成并通过验收。
-- 正在进行真实业务化改造，目标是把项目从 RAG Demo 升级为可用于课程学习场景的 AI 应用系统。
+```text
+http://127.0.0.1:8000/docs
+```
 
-## 说明
+### 4. 启动 Vue 前端
 
-本项目当前只保留子目录 README，根目录 README 不作为 ScholarFlow 主说明使用。
+```powershell
+cd D:\python\ai-project\scholarflow\vue-frontend
+npm install
+npm run dev
+```
+
+前端开发地址：
+
+```text
+http://localhost:5173
+```
+
+说明：
+
+- `5173` 是 Vite 开发服务端口。
+- `4173` 是执行 `npm run preview` 后用于预览生产构建的端口。
+- 开发环境下前端通过 `/api` 代理到 `http://127.0.0.1:8000`，避免跨域问题。
+
+## 前端构建
+
+```powershell
+cd D:\python\ai-project\scholarflow\vue-frontend
+npm run build
+```
+
+生产构建产物会生成到 `vue-frontend/dist/`，该目录不提交到 Git。
+
+如需本地预览生产构建：
+
+```powershell
+npm run preview
+```
+
+访问：
+
+```text
+http://localhost:4173
+```
+
+## Docker Compose 部署
+
+项目保留 Docker Compose 部署配置，可根据服务器环境准备 `.env.production` 后启动：
+
+```powershell
+copy .env.production.example .env.production
+docker compose up -d --build
+```
+
+默认服务：
+
+- FastAPI API：`http://服务器IP:8000`
+- Streamlit 原型页面：`http://服务器IP:8501`
+- MySQL：宿主机端口 `3307`
+- Redis：宿主机端口 `6379`
+
+Vue 前端推荐单独执行 `npm run build` 后，将 `dist` 交给 Nginx 或宝塔站点部署。
+
+## Git 提交说明
+
+本项目不提交以下内容：
+
+- `node_modules/`
+- `.vite/`
+- `dist/`
+- `.env` / `.env.production`
+- 本地数据库、上传文件、日志和缓存
+
+如果需要重新安装前端依赖：
+
+```powershell
+cd vue-frontend
+npm install
+```
+
+## 当前项目状态
+
+- 后端 FastAPI 接口已包含登录鉴权、课程管理、资料上传、RAG 问答、反馈、检索调试和教师分析看板。
+- 前端已由 Streamlit 原型迁移为 Vue3 + Element Plus 后台管理单页应用。
+- 项目名称已统一为：**高校课程 AI 学习助手平台**。

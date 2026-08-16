@@ -1,21 +1,40 @@
-.venv/
+﻿.venv/
 .env
+.env.production
 __pycache__/
 .pytest_cache/
+*.pyc
+*.log
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Python runtime data
 data/chroma/
 data/memory/
 data/auth/
 data/raw/uploads/
-.env.production
+data/qdrant_local/
+data/**/*.sqlite
+data/**/*.sqlite3
 logs/
 backups/
 reports/*.csv
-*.log
-.idea/
-*.pyc
 
-# local sqlite runtime databases
-data/**/*.sqlite
-data/**/*.sqlite3
+# Node / Vue frontend
+node_modules/
+**/node_modules/
+.vite/
+**/.vite/
+dist/
+**/dist/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
 
-data/qdrant_local/
+# generated Streamlit UI drafts
+ui_beautified_*.py

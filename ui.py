@@ -20,6 +20,324 @@ AUTH_KEYS = [
 ]
 
 
+
+APP_CSS = """
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700;800;900&display=swap');
+:root {
+    --sf-bg: #0b1020;
+    --sf-bg-2: #111a32;
+    --sf-surface: rgba(255,255,255,.94);
+    --sf-surface-strong: #ffffff;
+    --sf-text: #0f172a;
+    --sf-muted: #64748b;
+    --sf-border: rgba(148,163,184,.24);
+    --sf-primary: #3b82f6;
+    --sf-primary-dark: #1d4ed8;
+    --sf-cyan: #06b6d4;
+    --sf-violet: #7c3aed;
+    --sf-green: #10b981;
+    --sf-orange: #f59e0b;
+    --sf-shadow: 0 24px 70px rgba(2, 6, 23, 0.18);
+    --sf-shadow-soft: 0 14px 34px rgba(15, 23, 42, 0.10);
+    --sf-radius-xl: 30px;
+    --sf-radius-lg: 22px;
+    --sf-radius-md: 16px;
+}
+html, body, [class*="css"] { font-family: 'Noto Sans SC', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+.stApp {
+    background:
+        radial-gradient(circle at 8% 8%, rgba(59,130,246,.38), transparent 24rem),
+        radial-gradient(circle at 88% 12%, rgba(124,58,237,.28), transparent 28rem),
+        radial-gradient(circle at 72% 82%, rgba(6,182,212,.16), transparent 28rem),
+        linear-gradient(135deg, #080d1a 0%, #111827 42%, #0f172a 100%);
+    color: var(--sf-text);
+}
+.block-container { max-width: 1240px; padding-top: 2rem; padding-bottom: 4rem; }
+[data-testid="stHeader"] { background: transparent; }
+[data-testid="stToolbar"] { right: 1rem; }
+[data-testid="stSidebar"] {
+    background: linear-gradient(180deg, rgba(15,23,42,.98), rgba(30,41,59,.96));
+    border-right: 1px solid rgba(255,255,255,.10);
+}
+[data-testid="stSidebar"] * { color: rgba(255,255,255,.92) !important; }
+[data-testid="stSidebar"] .stCaptionContainer,
+[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p { color: rgba(226,232,240,.70) !important; }
+[data-testid="stSidebar"] code {
+    display: block;
+    padding: 10px 12px !important;
+    border-radius: 14px !important;
+    background: rgba(255,255,255,.08) !important;
+    border: 1px solid rgba(255,255,255,.12) !important;
+    color: #bfdbfe !important;
+}
+.sf-shell {
+    padding: 1px;
+    border-radius: 34px;
+    background: linear-gradient(135deg, rgba(255,255,255,.30), rgba(255,255,255,.06));
+    box-shadow: var(--sf-shadow);
+}
+.sf-hero {
+    position: relative;
+    overflow: hidden;
+    min-height: 310px;
+    padding: 36px 38px;
+    border-radius: 32px;
+    background:
+        linear-gradient(135deg, rgba(255,255,255,.96), rgba(239,246,255,.92) 54%, rgba(224,242,254,.90)),
+        radial-gradient(circle at 86% 18%, rgba(59,130,246,.22), transparent 20rem);
+    border: 1px solid rgba(255,255,255,.62);
+}
+.sf-hero:before {
+    content: "";
+    position: absolute;
+    width: 430px;
+    height: 430px;
+    right: -150px;
+    top: -130px;
+    border-radius: 999px;
+    background: radial-gradient(circle, rgba(59,130,246,.28), rgba(124,58,237,.16), transparent 68%);
+}
+.sf-hero:after {
+    content: "RAG";
+    position: absolute;
+    right: 34px;
+    bottom: 22px;
+    font-size: 110px;
+    line-height: 1;
+    font-weight: 900;
+    letter-spacing: -.08em;
+    color: rgba(15,23,42,.045);
+}
+.sf-eyebrow {
+    position: relative;
+    z-index: 1;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 13px;
+    border-radius: 999px;
+    background: rgba(37,99,235,.10);
+    color: #1d4ed8;
+    border: 1px solid rgba(37,99,235,.16);
+    font-size: 13px;
+    font-weight: 800;
+}
+.sf-title {
+    position: relative;
+    z-index: 1;
+    max-width: 820px;
+    margin: 18px 0 12px;
+    color: #08111f;
+    font-size: clamp(38px, 5vw, 68px);
+    line-height: 1.05;
+    font-weight: 900;
+    letter-spacing: -0.06em;
+}
+.sf-subtitle {
+    position: relative;
+    z-index: 1;
+    max-width: 760px;
+    margin: 0;
+    color: #475569;
+    font-size: 17px;
+    line-height: 1.9;
+}
+.sf-chip-row { position: relative; z-index: 1; display: flex; flex-wrap: wrap; gap: 10px; margin-top: 24px; }
+.sf-chip {
+    padding: 9px 13px;
+    border-radius: 999px;
+    color: #0f172a;
+    background: rgba(255,255,255,.82);
+    border: 1px solid rgba(148,163,184,.28);
+    box-shadow: 0 8px 20px rgba(15,23,42,.06);
+    font-size: 13px;
+    font-weight: 700;
+}
+.sf-login-layout {
+    display: grid;
+    grid-template-columns: 1.05fr .95fr;
+    gap: 18px;
+    margin-top: 18px;
+}
+.sf-product-preview,
+.sf-login-card,
+.sf-panel,
+.sf-card {
+    border-radius: var(--sf-radius-lg);
+    background: rgba(255,255,255,.94);
+    border: 1px solid rgba(226,232,240,.78);
+    box-shadow: var(--sf-shadow-soft);
+}
+.sf-product-preview { padding: 24px; }
+.sf-login-card { padding: 24px; }
+.sf-preview-window {
+    border-radius: 20px;
+    border: 1px solid #e2e8f0;
+    overflow: hidden;
+    background: #f8fafc;
+}
+.sf-preview-topbar {
+    height: 42px;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 0 14px;
+    border-bottom: 1px solid #e2e8f0;
+    background: #ffffff;
+}
+.sf-dot { width: 9px; height: 9px; border-radius: 999px; background: #cbd5e1; }
+.sf-preview-body { display: grid; grid-template-columns: 180px 1fr; min-height: 270px; }
+.sf-preview-nav { padding: 16px; background: #0f172a; }
+.sf-preview-nav div { height: 30px; border-radius: 10px; background: rgba(255,255,255,.10); margin-bottom: 10px; }
+.sf-preview-main { padding: 16px; }
+.sf-preview-card { height: 76px; border-radius: 16px; background: #ffffff; border: 1px solid #e2e8f0; margin-bottom: 12px; box-shadow: 0 8px 18px rgba(15,23,42,.05); }
+.sf-feature-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin: 18px 0; }
+.sf-feature-card {
+    padding: 18px;
+    border-radius: 20px;
+    background: rgba(255,255,255,.94);
+    border: 1px solid rgba(226,232,240,.80);
+    box-shadow: 0 12px 30px rgba(15,23,42,.10);
+}
+.sf-feature-title { color: #0f172a; font-size: 16px; font-weight: 850; margin-bottom: 8px; }
+.sf-feature-desc { color: #64748b; font-size: 13.5px; line-height: 1.75; }
+.sf-panel { padding: 24px; margin-bottom: 18px; }
+.sf-section-title { margin: 12px 0 8px; color: #0f172a; font-size: 26px; font-weight: 900; letter-spacing: -0.04em; }
+.sf-section-desc { margin: 0; color: #64748b; font-size: 15px; line-height: 1.8; }
+.sf-course-card { padding: 16px 18px; margin: 0 0 18px; border-radius: 20px; background: rgba(255,255,255,.94); border: 1px solid rgba(226,232,240,.82); box-shadow: var(--sf-shadow-soft); }
+.sf-status-pill { display: inline-flex; align-items: center; padding: 9px 13px; border-radius: 999px; background: #eff6ff; color: #1d4ed8; border: 1px solid #dbeafe; font-weight: 800; font-size: 13px; }
+.sf-empty-hint { padding: 20px 22px; border-radius: 20px; background: rgba(255,255,255,.94); border: 1px dashed #bfdbfe; color: #475569; box-shadow: 0 10px 28px rgba(15,23,42,.06); line-height: 1.75; }
+.sf-callout { padding: 15px 18px; border-radius: 18px; background: #eff6ff; border: 1px solid #bfdbfe; color: #1e3a8a; line-height: 1.7; margin: 10px 0 16px; }
+.sf-status-dot { display: inline-block; width: 8px; height: 8px; border-radius: 999px; background: #2563eb; margin-right: 8px; }
+.sf-doc-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.sf-doc-card { padding: 18px; border-radius: 20px; background: #ffffff; border: 1px solid #e2e8f0; box-shadow: 0 10px 26px rgba(15,23,42,.07); }
+.sf-doc-title { font-size: 16px; font-weight: 850; color: #0f172a; margin-bottom: 8px; }
+.sf-doc-meta { color: #64748b; font-size: 13px; line-height: 1.8; word-break: break-all; }
+h1,h2,h3 { letter-spacing: -0.035em; }
+hr { margin: 1.4rem 0; border-color: rgba(203,213,225,.65); }
+small,.stCaptionContainer { color: #64748b !important; }
+[data-testid="stTabs"] [data-baseweb="tab-list"] { gap: 8px; padding: 8px; border-radius: 20px; background: rgba(255,255,255,.92); border: 1px solid rgba(226,232,240,.82); box-shadow: var(--sf-shadow-soft); }
+[data-testid="stTabs"] [data-baseweb="tab"] { min-height: 46px; padding: 0 16px; border-radius: 14px; color: #475569; font-weight: 800; }
+[data-testid="stTabs"] [aria-selected="true"] { background: linear-gradient(135deg, #0f172a, #1e40af); color: #ffffff !important; }
+.stButton > button,.stDownloadButton > button,button[kind="primary"] { min-height: 44px; border-radius: 14px !important; border: 1px solid #1d4ed8 !important; background: linear-gradient(135deg, #2563eb, #1d4ed8) !important; color: #ffffff !important; font-weight: 800 !important; box-shadow: 0 12px 28px rgba(37,99,235,.26) !important; transition: transform .18s ease, box-shadow .18s ease, background .18s ease; }
+.stButton > button:hover,.stDownloadButton > button:hover { transform: translateY(-1px); box-shadow: 0 16px 34px rgba(37,99,235,.32) !important; }
+.stButton > button[kind="secondary"] { background: #ffffff !important; color: #334155 !important; border: 1px solid #dbe3ef !important; box-shadow: 0 8px 20px rgba(15,23,42,.06) !important; }
+.stButton > button:disabled { background: #e5e7eb !important; color: #94a3b8 !important; border-color: #e5e7eb !important; box-shadow: none !important; }
+[data-testid="stTextInput"] input,[data-testid="stTextArea"] textarea,[data-testid="stSelectbox"] div[data-baseweb="select"] > div,[data-testid="stNumberInput"] input { min-height: 44px; border-radius: 14px !important; border-color: #dbe3ef !important; background: #ffffff !important; box-shadow: 0 8px 20px rgba(15,23,42,.045) !important; }
+[data-testid="stTextInput"] input:focus,[data-testid="stTextArea"] textarea:focus { border-color: #60a5fa !important; box-shadow: 0 0 0 4px rgba(37,99,235,.12) !important; }
+[data-testid="stFileUploader"] section { border-radius: 20px !important; border: 1px dashed #93c5fd !important; background: #f8fbff !important; }
+[data-testid="stForm"],[data-testid="stExpander"],[data-testid="stDataFrame"],.stAlert { border-radius: 18px !important; }
+[data-testid="stDataFrame"] { overflow: hidden; border: 1px solid #e2e8f0; box-shadow: 0 10px 26px rgba(15,23,42,.06); }
+[data-testid="stMetric"] { padding: 20px; border-radius: 20px; background: #ffffff; border: 1px solid #e2e8f0; box-shadow: var(--sf-shadow-soft); }
+[data-testid="stMetricValue"] { color: #0f172a; font-weight: 900; }
+[data-testid="stMetricLabel"] { color: #64748b; }
+[data-testid="stChatMessage"] { border-radius: 20px; padding: 14px 16px; background: #ffffff; border: 1px solid #e2e8f0; box-shadow: 0 10px 24px rgba(15,23,42,.06); }
+[data-testid="stChatInput"] textarea { border-radius: 18px !important; border: 1px solid #dbe3ef !important; box-shadow: 0 16px 36px rgba(15,23,42,.16) !important; }
+[data-testid="stSidebar"] .stButton > button { border-color: rgba(255,255,255,.16) !important; background: rgba(255,255,255,.08) !important; color: #f8fafc !important; box-shadow: none !important; }
+*:focus-visible { outline: 3px solid rgba(96,165,250,.34) !important; outline-offset: 2px !important; }
+@media (max-width: 960px) { .sf-login-layout { grid-template-columns: 1fr; } .sf-feature-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .sf-doc-grid { grid-template-columns: 1fr; } .sf-hero { min-height: auto; padding: 28px; } }
+@media (max-width: 560px) { .block-container { padding-left: 1rem; padding-right: 1rem; } .sf-feature-grid { grid-template-columns: 1fr; } [data-testid="stTabs"] [data-baseweb="tab-list"] { overflow-x: auto; flex-wrap: nowrap; } .sf-title { font-size: 36px; } }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; scroll-behavior: auto !important; } }
+</style>
+"""
+
+
+def apply_theme() -> None:
+    """Inject global CSS for a polished Streamlit product UI."""
+    st.markdown(APP_CSS, unsafe_allow_html=True)
+
+
+def render_hero(title: str, subtitle: str, eyebrow: str = "RAG Course Assistant", chips: list[str] | None = None) -> None:
+    """Render the unified product hero area."""
+    chips = chips or ["课程知识库", "RAG 溯源问答", "学习计划 Agent", "自动出题", "教师分析看板"]
+    chip_html = "".join(f'<span class="sf-chip">{chip}</span>' for chip in chips)
+    st.markdown(f"""
+        <div class="sf-shell">
+            <section class="sf-hero">
+                <div class="sf-eyebrow">{eyebrow}</div>
+                <h1 class="sf-title">{title}</h1>
+                <p class="sf-subtitle">{subtitle}</p>
+                <div class="sf-chip-row">{chip_html}</div>
+            </section>
+        </div>
+        """, unsafe_allow_html=True)
+
+
+def render_login_showcase() -> None:
+    """Render a product preview beside login form."""
+    st.markdown(
+        """
+        <div class="sf-product-preview">
+            <div class="sf-eyebrow">项目演示预览</div>
+            <h2 class="sf-section-title">从课程资料到智能学习闭环</h2>
+            <p class="sf-section-desc">教师上传资料构建课程知识库，学生基于资料问答、生成计划与练习，教师通过分析看板持续优化课程内容。</p>
+            <div class="sf-preview-window" style="margin-top:18px;">
+                <div class="sf-preview-topbar"><span class="sf-dot"></span><span class="sf-dot"></span><span class="sf-dot"></span></div>
+                <div class="sf-preview-body">
+                    <div class="sf-preview-nav"><div></div><div></div><div></div><div></div></div>
+                    <div class="sf-preview-main"><div class="sf-preview-card"></div><div class="sf-preview-card"></div><div class="sf-preview-card"></div></div>
+                </div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_section_header(title: str, desc: str, icon: str = "") -> None:
+    """Render a consistent feature section header."""
+    label = f"{icon} {title}" if icon else title
+    st.markdown(f"""
+        <div class="sf-panel">
+            <div class="sf-eyebrow">{label}</div>
+            <h2 class="sf-section-title">{title}</h2>
+            <p class="sf-section-desc">{desc}</p>
+        </div>
+        """, unsafe_allow_html=True)
+
+
+def render_empty_state(message: str) -> None:
+    """Render a polished empty state without changing business logic."""
+    st.markdown(f'<div class="sf-empty-hint">{message}</div>', unsafe_allow_html=True)
+
+
+def render_doc_card(document: dict) -> None:
+    """Render one document as a compact card for resume demo quality."""
+    filename = document.get("original_name", "未命名资料")
+    status = document.get("status", "unknown")
+    source_id = document.get("source_id", "")
+    file_type = document.get("file_type", "")
+    chunk_count = document.get("chunk_count", 0)
+    created_at = document.get("created_at", "")
+    st.markdown(f"""
+        <div class="sf-doc-card">
+            <div class="sf-doc-title">{filename}</div>
+            <div class="sf-doc-meta">状态：{status} ｜ 类型：{file_type or "未知"} ｜ 切片：{chunk_count} ｜ ID：{source_id}</div>
+            <div class="sf-doc-meta">创建时间：{created_at or "-"}</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+
+def render_feature_grid() -> None:
+    """Render concise product capability cards for resume/demo presentation."""
+    st.markdown(
+        """
+        <div class="sf-feature-grid">
+            <div class="sf-feature-card"><div class="sf-feature-title">RAG 课程问答</div><div class="sf-feature-desc">混合检索、Rerank 与引用溯源，让回答基于课程资料。</div></div>
+            <div class="sf-feature-card"><div class="sf-feature-title">课程资料入库</div><div class="sf-feature-desc">支持 PDF、Markdown、TXT 上传，异步解析、切块和向量化。</div></div>
+            <div class="sf-feature-card"><div class="sf-feature-title">学习 Agent</div><div class="sf-feature-desc">自动生成学习计划、练习题和阶段性学习产出。</div></div>
+            <div class="sf-feature-card"><div class="sf-feature-title">教学反馈分析</div><div class="sf-feature-desc">沉淀高频问题、无引用问题和低质量问答，反哺课程建设。</div></div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_status_callout(message: str) -> None:
+    """Render a neutral status callout for guidance and next steps."""
+    st.markdown(f'<div class="sf-callout"><span class="sf-status-dot"></span>{message}</div>', unsafe_allow_html=True)
+
 def auth_headers() -> dict[str, str]:
     """所有需要登录的接口都统一从这里拿 Bearer Token 请求头。"""
     # 组装Authorization请求头，带上Bearer令牌
@@ -161,92 +479,106 @@ def restore_latest_thread_or_new() -> None:
 
 def render_login_page() -> None:
     """未登录时展示登录/注册页面。"""
-    # 设置页面大标题
-    st.title("ScholarFlow｜AI 课程知识库与学习助手")
-    # 设置子标题
-    st.subheader("账号登录")
+    left_col, right_col = st.columns([1.18, 0.82], gap="large")
 
-    # 创建两个标签页：登录、注册
-    login_tab, register_tab = st.tabs(["登录", "注册"])
+    with left_col:
+        render_hero(
+            "高校课程AI学习助手平台项目",
+            "面向高校课程资料与教学知识库的 RAG 智能问答平台。支持资料入库、引用溯源、多轮问答、学习计划、自动出题和教师分析看板，形成从课程资料到学习反馈的完整闭环。",
+            eyebrow="Course RAG Assistant",
+            chips=["课程知识库", "混合检索", "引用溯源", "学习 Agent", "教学分析"],
+        )
+        render_login_showcase()
 
-    # 登录tab内部代码块
-    with login_tab:
-        # st.form表单组件，点击submit才会一次性提交表单数据
-        with st.form("login_form"):
-            # 用户名输入框，key区分组件状态
-            login_username = st.text_input("用户名", key="login_username")
-            # 密码输入框，type="password"隐藏输入内容
-            login_password = st.text_input("密码", type="password", key="login_password")
-            # 表单提交按钮，use_container_width占满整行宽度
-            login_submitted = st.form_submit_button("登录", use_container_width=True)
+    with right_col:
+        st.markdown('<div class="sf-login-card">', unsafe_allow_html=True)
+        st.markdown(
+            '<h2 class="sf-section-title">账号登录</h2><p class="sf-section-desc">登录后进入课程空间，管理资料、体验 AI 问答与教学分析。</p>',
+            unsafe_allow_html=True,
+        )
 
-        # 判断表单是否点击提交
-        if login_submitted:
-            try:
-                # 直接调用登录接口，登录接口不需要auth header
-                response = httpx.post(
-                    f"{API_BASE_URL}/auth/login",
-                    json={
-                        "username": login_username.strip(), # 去除用户名前后空格
-                        "password": login_password,
-                    },
-                    timeout=30,
-                )
-                # 请求成功
-                if response.is_success:
-                    # 保存登录返回token信息
-                    save_auth_data(response.json())
-                    # 初始化聊天相关session状态
-                    ensure_chat_state()
-                    # 加载最新历史会话
-                    restore_latest_thread_or_new()
-                    # st.rerun()刷新整个streamlit页面
-                    st.rerun()
-                else:
-                    # 登录失败，展示错误信息
-                    st.error(response_error(response))
-            except httpx.RequestError as exc:
-                # 捕获网络异常，打印错误
-                st.error(f"无法连接后端：{exc}")
+        # 创建两个标签页：登录、注册
+        login_tab, register_tab = st.tabs(["登录", "注册"])
 
-    # 注册tab代码块
-    with register_tab:
-        # 注册表单
-        with st.form("register_form"):
-            register_username = st.text_input("用户名", key="register_username")
-            register_password = st.text_input("密码", type="password", key="register_password")
-            confirm_password = st.text_input("确认密码", type="password", key="confirm_password")
-            register_submitted = st.form_submit_button("注册并登录", use_container_width=True)
+        # 登录tab内部代码块
+        with login_tab:
+            # st.form表单组件，点击submit才会一次性提交表单数据
+            with st.form("login_form"):
+                # 用户名输入框，key区分组件状态
+                login_username = st.text_input("用户名", key="login_username")
+                # 密码输入框，type="password"隐藏输入内容
+                login_password = st.text_input("密码", type="password", key="login_password")
+                # 表单提交按钮，use_container_width占满整行宽度
+                login_submitted = st.form_submit_button("登录", use_container_width=True)
 
-        # 点击注册提交按钮
-        if register_submitted:
-            # 去除用户名前后空格
-            username = register_username.strip()
-            # 前端校验：两次密码不一致
-            if register_password != confirm_password:
-                st.error("两次输入的密码不一致")
-            # 前端校验密码长度最少8位
-            elif len(register_password) < 8:
-                st.error("密码至少需要 8 个字符")
-            else:
+            # 判断表单是否点击提交
+            if login_submitted:
                 try:
-                    # 请求注册接口
+                    # 直接调用登录接口，登录接口不需要auth header
                     response = httpx.post(
-                        f"{API_BASE_URL}/auth/register",
-                        json={"username": username, "password": register_password},
+                        f"{API_BASE_URL}/auth/login",
+                        json={
+                            "username": login_username.strip(), # 去除用户名前后空格
+                            "password": login_password,
+                        },
                         timeout=30,
                     )
+                    # 请求成功
                     if response.is_success:
-                        # 注册成功直接保存token，自动登录
+                        # 保存登录返回token信息
                         save_auth_data(response.json())
+                        # 初始化聊天相关session状态
                         ensure_chat_state()
+                        # 加载最新历史会话
                         restore_latest_thread_or_new()
+                        # st.rerun()刷新整个streamlit页面
                         st.rerun()
                     else:
+                        # 登录失败，展示错误信息
                         st.error(response_error(response))
                 except httpx.RequestError as exc:
+                    # 捕获网络异常，打印错误
                     st.error(f"无法连接后端：{exc}")
 
+        # 注册tab代码块
+        with register_tab:
+            # 注册表单
+            with st.form("register_form"):
+                register_username = st.text_input("用户名", key="register_username")
+                register_password = st.text_input("密码", type="password", key="register_password")
+                confirm_password = st.text_input("确认密码", type="password", key="confirm_password")
+                register_submitted = st.form_submit_button("注册并登录", use_container_width=True)
+
+            # 点击注册提交按钮
+            if register_submitted:
+                # 去除用户名前后空格
+                username = register_username.strip()
+                # 前端校验：两次密码不一致
+                if register_password != confirm_password:
+                    st.error("两次输入的密码不一致")
+                # 前端校验密码长度最少8位
+                elif len(register_password) < 8:
+                    st.error("密码至少需要 8 个字符")
+                else:
+                    try:
+                        # 请求注册接口
+                        response = httpx.post(
+                            f"{API_BASE_URL}/auth/register",
+                            json={"username": username, "password": register_password},
+                            timeout=30,
+                        )
+                        if response.is_success:
+                            # 注册成功直接保存token，自动登录
+                            save_auth_data(response.json())
+                            ensure_chat_state()
+                            restore_latest_thread_or_new()
+                            st.rerun()
+                        else:
+                            st.error(response_error(response))
+                    except httpx.RequestError as exc:
+                        st.error(f"无法连接后端：{exc}")
+
+        st.markdown("</div>", unsafe_allow_html=True)
 
 def selected_course_id() -> str:
     """读取当前选中的课程 ID。"""
@@ -260,7 +592,7 @@ def require_selected_course() -> str | None:
     course_id = selected_course_id()
     # 如果课程id为空，弹出警告，返回None
     if not course_id:
-        st.warning("请先在“我的课程”里创建或选择一门课程。")
+        render_empty_state("请先在“我的课程”里创建或选择一门课程，再使用当前功能。")
         return None
     # 显示当前课程信息给用户
     st.caption(
@@ -415,8 +747,7 @@ def render_sidebar() -> None:
 
 def render_courses_tab() -> None:
     """Tab 1：创建课程、选择课程。"""
-    st.subheader("我的课程")
-    st.write("这里解决的是：用户先选择业务范围，后面的知识库、问答、出题都只围绕这门课工作。")
+    render_section_header("我的课程", "创建或选择当前课程，后续知识库、问答、出题和分析都会围绕这门课工作。")
 
     # 创建课程表单
     with st.form("create_course_form"):
@@ -465,7 +796,7 @@ def render_courses_tab() -> None:
 
     # 用户没有任何课程
     if not courses:
-        st.info("你还没有课程。可以先在上方创建课程，或让老师把你的 user_id 添加为课程成员。")
+        render_empty_state("你还没有课程。可以先在上方创建课程，或让老师把你的 user_id 添加为课程成员。")
         return
 
     # 构造下拉框显示文本数组
@@ -503,7 +834,7 @@ def render_courses_tab() -> None:
 
 def render_documents_tab() -> None:
     """Tab 2：上传课程资料、查看当前课程知识库文档列表。"""
-    st.subheader("课程知识库")
+    render_section_header("课程知识库", "上传 PDF、Markdown 或 TXT 资料，后台自动解析、切块并写入向量库。")
     course_id = require_selected_course()
     if not course_id:
         return
@@ -539,7 +870,7 @@ def render_documents_tab() -> None:
                 data = response.json()
                 st.session_state.last_task_id = data.get("task_id", "")
                 st.success(f"上传成功，任务ID：{st.session_state.last_task_id}")
-                st.info("接下来去“上传任务”tab 查询任务进度；任务 success 后再回来刷新课程知识库列表。")
+                render_empty_state("接下来去“上传任务”tab 查询任务进度；任务 success 后再回来刷新课程知识库列表。")
             else:
                 st.error(response_error(response))
         except httpx.RequestError as exc:
@@ -552,10 +883,15 @@ def render_documents_tab() -> None:
         if response.is_success:
             documents = response.json().get("documents", [])
             if documents:
-                st.dataframe(documents, use_container_width=True)
                 # 如果文档列表不为空，渲染表格展示文档元数据
                 if documents:
+                    st.markdown("### 资料卡片")
+                    st.markdown('<div class="sf-doc-grid">', unsafe_allow_html=True)
+                    for document in documents:
+                        render_doc_card(document)
+                    st.markdown('</div>', unsafe_allow_html=True)
                     # Streamlit表格展示文档列表，宽度占满容器
+                    st.markdown("### 资料明细")
                     st.dataframe(documents, use_container_width=True)
                     # 增加二级标题：资料操作区域
                     st.markdown("### 资料操作")
@@ -608,7 +944,7 @@ def render_documents_tab() -> None:
                                     else:
                                         st.error(response_error(response))
             else:
-                st.warning("这门课程暂时没有入库文档。请先上传课程资料。")
+                render_empty_state("这门课程暂时没有入库文档。请先上传课程资料，系统会自动完成解析、切块和向量入库。")
         else:
             st.error(response_error(response))
     except httpx.RequestError as exc:
@@ -617,7 +953,7 @@ def render_documents_tab() -> None:
 
 def render_qa_tab() -> None:
     """Tab 3：课程级 AI 问答。"""
-    st.subheader("AI 问答")
+    render_section_header("AI 问答", "基于当前课程资料进行带引用问答，支持多轮追问与回答反馈。")
     course_id = require_selected_course()
     if not course_id:
         return
@@ -633,7 +969,7 @@ def render_qa_tab() -> None:
         col1, col2 = st.columns(2)
 
         with col1:
-            if st.button("有帮助 👍", use_container_width=True):
+            if st.button("有帮助", use_container_width=True):
                 response = api_post(
                     f"/courses/{course_id}/feedback",
                     json={
@@ -658,7 +994,7 @@ def render_qa_tab() -> None:
                     ["答案不准确", "没有引用", "引用不相关", "回答太少", "没看懂", "其他"],
                 )
                 comment = st.text_area("补充说明")
-                submitted = st.form_submit_button("没帮助 👎", use_container_width=True)
+                submitted = st.form_submit_button("没帮助", use_container_width=True)
             if submitted:
                 response = api_post(
                     f"/courses/{course_id}/feedback",
@@ -723,7 +1059,7 @@ def render_qa_tab() -> None:
 
 def render_learning_plan_tab() -> None:
     """Tab 4：学习计划 Agent。"""
-    st.subheader("学习计划")
+    render_section_header("学习计划", "输入学习目标，由 Agent 按天拆解任务、产出和难度节奏。")
     course_id = require_selected_course()
     if not course_id:
         return
@@ -775,7 +1111,7 @@ def render_learning_plan_tab() -> None:
 
 def render_quiz_tab() -> None:
     """Tab 5：自动出题 Agent。"""
-    st.subheader("自动出题")
+    render_section_header("自动出题", "围绕指定主题自动生成选择题、判断题、简答题或面试题。")
     course_id = require_selected_course()
     if not course_id:
         return
@@ -828,7 +1164,7 @@ def render_quiz_tab() -> None:
 
 def render_retrieval_debug_tab() -> None:
     """Tab 6：教师查看检索召回过程。"""
-    st.subheader("检索可视化")
+    render_section_header("检索可视化", "教师可查看检索召回和排序过程，定位知识库命中效果。")
     course_id = require_selected_course()
     if not course_id:
         return
@@ -866,7 +1202,7 @@ def render_retrieval_debug_tab() -> None:
 
 def render_tasks_tab() -> None:
     """Tab 7：查看课程异步上传任务，并支持按 task_id 查询。"""
-    st.subheader("上传任务")
+    render_section_header("上传任务", "查看课程资料入库任务状态，快速定位解析或向量化进度。")
     course_id = require_selected_course()
     if not course_id:
         return
@@ -879,7 +1215,7 @@ def render_tasks_tab() -> None:
             if tasks:
                 st.dataframe(tasks, use_container_width=True)
             else:
-                st.info("当前课程还没有上传任务。")
+                render_empty_state("当前课程还没有上传任务。上传课程资料后，这里会展示解析和入库进度。")
         else:
             st.error(response_error(response))
     except httpx.RequestError as exc:
@@ -888,7 +1224,7 @@ def render_tasks_tab() -> None:
     st.divider()
     st.markdown("### 按任务ID查询")
     task_id = st.text_input(
-        "??ID",
+        "任务 ID",
         value=st.session_state.get("last_task_id", ""),
         placeholder="粘贴上传接口返回的 task_id",
     )
@@ -908,7 +1244,7 @@ def render_tasks_tab() -> None:
 
 def render_analytics_tab() -> None:
     """Tab 8：教师查看课程问答分析。"""
-    st.subheader("问答分析")
+    render_section_header("问答分析", "统计高频问题、无引用问题和低质量问题，辅助教师优化课程资料。")
     course_id = require_selected_course()
     if not course_id:
         return
@@ -936,7 +1272,7 @@ def render_analytics_tab() -> None:
                     if items:
                         st.dataframe(items, use_container_width=True)
                     else:
-                        st.info("暂无数据")
+                        render_empty_state("暂无数据。课程产生问答记录后，这里会自动展示分析结果。")
                 else:
                     st.error(response_error(response))
             except httpx.RequestError as exc:
@@ -946,7 +1282,7 @@ def render_analytics_tab() -> None:
     st.markdown("### 处理低质量问题")
     low_quality_items = st.session_state.get("low_quality_items", [])
     if not low_quality_items:
-        st.info("请先点击“刷新分析数据”，并确保课程中存在低质量问题记录。")
+        render_empty_state("请先点击“刷新分析数据”，并确保课程中存在低质量问题记录。")
         return
 
     event_options = {
@@ -978,7 +1314,7 @@ def render_analytics_tab() -> None:
             st.error(response_error(response))
 
 def render_dashboard_tab() -> None:
-    st.subheader("课程看板")
+    render_section_header("课程看板", "汇总文档入库、问答质量、引用率和反馈数据。")
     course_id = require_selected_course()
     if not course_id:
         return
@@ -1011,7 +1347,8 @@ def render_dashboard_tab() -> None:
 
 
 # streamlit全局页面配置：页面标题、图标、宽布局
-st.set_page_config(page_title="ScholarFlow｜AI课程知识库与学习助手", page_icon="S", layout="wide")
+st.set_page_config(page_title="高校课程AI学习助手平台项目", page_icon="S", layout="wide")
+apply_theme()
 
 # 判断未登录：session不存在access_token，渲染登录页面，st.stop终止后续全部代码
 if "access_token" not in st.session_state:
@@ -1023,16 +1360,25 @@ ensure_chat_state()
 # 渲染左侧侧边栏
 render_sidebar()
 
-# 主页面大标题
-st.title("ScholarFlow｜AI课程知识库与学习助手")
-st.caption("面向课程资料、培训文档和项目知识库的带引用问答、学习计划、自动出题与评估诊断系统。")
+# 主页面 Hero
+render_hero(
+    "高校课程AI学习助手平台项目",
+    "面向课程资料、培训文档和项目知识库的带引用问答、学习计划、自动出题与评估诊断系统。",
+)
+render_feature_grid()
 
 # 获取当前课程名称
 current_course = st.session_state.get("current_course_name")
 if current_course:
-    st.info(f"当前已选择课程：{current_course}（{st.session_state.current_course_role or '未知角色'}）")
+    st.markdown(
+        f'<div class="sf-course-card"><span class="sf-status-pill">当前课程：{current_course}｜{st.session_state.current_course_role or "未知角色"}</span></div>',
+        unsafe_allow_html=True,
+    )
 else:
-    st.info("当前还没有选择课程，请先进入“我的课程”创建或选择课程。")
+    st.markdown(
+        '<div class="sf-empty-hint">当前还没有选择课程，请先进入“我的课程”创建或选择课程。</div>',
+        unsafe_allow_html=True,
+    )
 
 # 创建8个tab标签页
 tabs = st.tabs([

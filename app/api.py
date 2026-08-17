@@ -1011,15 +1011,25 @@ def learning_plan(
         daily_minutes=request.daily_minutes,# 每日学习分钟数，来自请求体
     )
     result_dict = result.model_dump() if hasattr(result, "model_dump") else dict(result)
-    record_id = learning_history_store.save_plan(
-        user_id=user_id,
-        course_id=course_id,
-        goal=request.goal,
-        days=request.days,
-        difficulty=request.difficulty,
-        daily_minutes=request.daily_minutes,
-        result=result_dict,
-    )
+    record_id = ""
+    try:
+        record_id = learning_history_store.save_plan(
+            user_id=user_id,
+            course_id=course_id,
+            goal=request.goal,
+            days=request.days,
+            difficulty=request.difficulty,
+            daily_minutes=request.daily_minutes,
+            result=result_dict,
+        )
+    except Exception:
+        logger.exception(
+            "learning_plan.history_save_failed",
+            extra={
+                "event": "learning_plan.history_save_failed",
+                "details": {"course_id": course_id, "user_id": user_id},
+            },
+        )
     return {**result_dict, "record_id": record_id}
 
 
@@ -1109,15 +1119,25 @@ def quiz(
         difficulty=request.difficulty,          # 难度，取自前端请求体
     )
     result_dict = result.model_dump() if hasattr(result, "model_dump") else dict(result)
-    record_id = learning_history_store.save_quiz(
-        user_id=user_id,
-        course_id=course_id,
-        topic=request.topic,
-        question_count=request.question_count,
-        question_type=request.question_type,
-        difficulty=request.difficulty,
-        result=result_dict,
-    )
+    record_id = ""
+    try:
+        record_id = learning_history_store.save_quiz(
+            user_id=user_id,
+            course_id=course_id,
+            topic=request.topic,
+            question_count=request.question_count,
+            question_type=request.question_type,
+            difficulty=request.difficulty,
+            result=result_dict,
+        )
+    except Exception:
+        logger.exception(
+            "quiz.history_save_failed",
+            extra={
+                "event": "quiz.history_save_failed",
+                "details": {"course_id": course_id, "user_id": user_id},
+            },
+        )
     return {**result_dict, "record_id": record_id}
 
 

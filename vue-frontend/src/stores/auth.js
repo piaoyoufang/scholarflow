@@ -10,6 +10,7 @@ export const useAuthStore = defineStore('auth', {
     expiresAt: '',
     refreshToken: '',
     refreshExpiresAt: '',
+    role: '',
     currentCourseId: '',
     currentCourseName: '',
     currentCourseRole: '',
@@ -20,7 +21,9 @@ export const useAuthStore = defineStore('auth', {
   }),
   getters: {
     isLoggedIn: (state) => Boolean(state.accessToken),
-    hasCourse: (state) => Boolean(state.currentCourseId)
+    hasCourse: (state) => Boolean(state.currentCourseId),
+    isTeacher: (state) => state.role === 'teacher',
+    isStudent: (state) => state.role === 'student'
   },
   actions: {
     restoreFromStorage() {
@@ -29,6 +32,7 @@ export const useAuthStore = defineStore('auth', {
       try {
         const data = JSON.parse(raw)
         Object.assign(this, data)
+        if (!this.role && this.accessToken) this.role = 'teacher'
         if (!this.threadId) this.threadId = v4Like()
         if (!Array.isArray(this.messages)) this.messages = []
       } catch {
@@ -42,6 +46,7 @@ export const useAuthStore = defineStore('auth', {
         expiresAt: this.expiresAt,
         refreshToken: this.refreshToken,
         refreshExpiresAt: this.refreshExpiresAt,
+        role: this.role,
         currentCourseId: this.currentCourseId,
         currentCourseName: this.currentCourseName,
         currentCourseRole: this.currentCourseRole,
@@ -57,6 +62,7 @@ export const useAuthStore = defineStore('auth', {
       this.expiresAt = data.expires_at
       this.refreshToken = data.refresh_token
       this.refreshExpiresAt = data.refresh_expires_at
+      this.role = data.role || 'student'
       this.persist()
     },
     setCourse(course) {

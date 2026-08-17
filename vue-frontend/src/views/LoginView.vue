@@ -39,6 +39,13 @@
             <el-form-item label="确认密码" prop="confirmPassword">
               <el-input v-model="registerForm.confirmPassword" type="password" placeholder="再次输入密码" show-password autocomplete="new-password" />
             </el-form-item>
+            <el-form-item label="选择身份" prop="role">
+              <el-radio-group v-model="registerForm.role" class="role-selector">
+                <el-radio-button label="student">学生</el-radio-button>
+                <el-radio-button label="teacher">教师</el-radio-button>
+              </el-radio-group>
+              <div class="role-tip">学生用于课程学习、AI 问答和练习；教师可创建课程、上传资料并查看教学分析。</div>
+            </el-form-item>
             <el-button type="primary" :loading="loading" class="full" @click="register">注册并登录</el-button>
           </el-form>
         </el-tab-pane>
@@ -63,7 +70,7 @@ const loading = ref(false)
 const loginRef = ref()
 const registerRef = ref()
 const loginForm = reactive({ username: '', password: '' })
-const registerForm = reactive({ username: '', password: '', confirmPassword: '' })
+const registerForm = reactive({ username: '', password: '', confirmPassword: '', role: 'student' })
 
 const loginRules = {
   username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
@@ -75,7 +82,8 @@ const registerRules = {
   confirmPassword: [
     { required: true, message: '请再次输入密码', trigger: 'blur' },
     { validator: (_, value, callback) => value !== registerForm.password ? callback(new Error('两次输入的密码不一致')) : callback(), trigger: 'blur' }
-  ]
+  ],
+  role: [{ required: true, message: '请选择注册身份', trigger: 'change' }]
 }
 
 async function restoreLatestThread() {
@@ -108,7 +116,7 @@ async function register() {
   await registerRef.value?.validate()
   loading.value = true
   try {
-    const { data } = await authApi.register({ username: registerForm.username.trim(), password: registerForm.password })
+    const { data } = await authApi.register({ username: registerForm.username.trim(), password: registerForm.password, role: registerForm.role })
     auth.saveAuth(data)
     await restoreLatestThread()
     router.push('/courses')
@@ -133,6 +141,9 @@ p { max-width: 680px; color:#475569; line-height: 1.9; font-size: 17px; }
 .auth-tabs :deep(.el-tabs__item) { height: 46px; font-weight: 800; color: #64748b; }
 .auth-tabs :deep(.el-tabs__item.is-active) { color: #2563eb; }
 .auth-tabs :deep(.el-tabs__active-bar) { height: 3px; border-radius: 999px; background: linear-gradient(90deg,#2563eb,#06b6d4); }
+.role-selector { width: 100%; display: grid; grid-template-columns: 1fr 1fr; }
+.role-selector :deep(.el-radio-button__inner) { width: 100%; font-weight: 800; }
+.role-tip { margin-top: 8px; color: #64748b; font-size: 12px; line-height: 1.6; }
 .full { width: 100%; margin-top: 8px; }
 @media (max-width: 1040px) { .login-page { grid-template-columns:1fr; } .login-card { justify-self: stretch; width: 100%; } }
 </style>

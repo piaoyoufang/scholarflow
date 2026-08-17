@@ -117,6 +117,8 @@ class AuthStore:
     username TEXT NOT NULL UNIQUE COLLATE NOCASE,
     -- 用户密码加密哈希，数据库永不存储明文密码
     password_hash TEXT NOT NULL,
+    -- 全局账号身份：teacher 教师 / student 学生；新库默认学生
+    role TEXT NOT NULL DEFAULT 'student',
     -- 账号创建时间，默认取数据库当前时间
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -161,6 +163,17 @@ ON refresh_sessions(user_id);
                 )
 
             # 兼容逻辑：历史旧数据没有设置过期时间，无法做有效期校验，全部标记为已注销失效
+            # 查询users表结构，兼容旧版本账号库没有role字段的情况
+            user_columns = {
+                row["name"]
+                for row in connection.execute("PRAGMA table_info(users)")
+            }
+            if "role" not in user_columns:
+                # 旧账号原来默认拥有教师端能力，迁移时保留为teacher，避免已有演示账号权限突然丢失
+                connection.execute(
+                    "ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'teacher'"
+                )
+
             connection.execute(
                 "UPDATE sessions SET revoked_at = CURRENT_TIMESTAMP "
                 "WHERE expires_at IS NULL AND revoked_at IS NULL"
@@ -215,12 +228,15 @@ ON refresh_sessions(user_id);
         return username.strip().casefold()
 
     # 用户注册方法：接收原始用户名+明文密码，写入users账号表，返回唯一user_id
-    def register_user(self, username: str, password: str) -> str:
+    def register_user(self, username: str, password: str, role: str = "student") -> str:
         # 标准化处理用户名，统一格式用于数据库匹配
         normalized = self._normalize_username(username)
         # 校验标准化后用户名长度，至少3字符，不满足抛出参数错误
         if len(normalized) < 3:
             raise ValueError("用户名至少需要 3 个字符")
+        # Validate global account role: teacher or student only
+        if role not in {"teacher", "student"}:
+            raise ValueError("role must be teacher or student")
 
         # 生成全局唯一用户ID（UUID字符串）
         user_id = str(uuid4())
@@ -231,8 +247,8 @@ ON refresh_sessions(user_id);
             with self._connect() as connection:
                 # 插入用户记录到users表，存储标准化用户名、加密密码、用户ID
                 connection.execute(
-                    "INSERT INTO users(user_id, username, password_hash) VALUES (?, ?, ?)",
-                    (user_id, normalized, encoded_password),
+                    "INSERT INTO users(user_id, username, password_hash, role) VALUES (?, ?, ?, ?)",
+                    (user_id, normalized, encoded_password, role),
                 )
         # 捕获唯一性约束冲突：数据库username字段UNIQUE，重复注册触发该异常
         except sqlite3.IntegrityError as exc:
@@ -242,6 +258,15 @@ ON refresh_sessions(user_id);
         return user_id
 
     # 账号密码登录校验方法：验证用户名+密码是否匹配，合法返回user_id，错误返回None
+    # 查询账号全局身份：用于登录返回、菜单权限和教师端接口保护
+    def get_user_role(self, user_id: str) -> str:
+        with self._connect() as connection:
+            row = connection.execute(
+                "SELECT role FROM users WHERE user_id = ?",
+                (user_id,),
+            ).fetchone()
+        return str(row["role"]) if row and row["role"] else "student"
+
     def verify_user(self, username: str, password: str) -> str | None:
         # 标准化输入的用户名，和数据库存储格式统一
         normalized = self._normalize_username(username)

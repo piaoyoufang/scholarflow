@@ -11,13 +11,17 @@
 
       <el-menu router :default-active="$route.path" background-color="transparent" text-color="#cbd5e1" active-text-color="#ffffff">
         <el-menu-item index="/courses">我的课程</el-menu-item>
-        <el-menu-item index="/documents">课程知识库</el-menu-item>
+        <template v-if="auth.isTeacher">
+          <el-menu-item index="/documents">课程知识库</el-menu-item>
+        </template>
         <el-menu-item index="/chat">AI 问答</el-menu-item>
         <el-menu-item index="/learning-plan">学习计划</el-menu-item>
         <el-menu-item index="/quiz">自动出题</el-menu-item>
-        <el-menu-item index="/retrieval-debug">检索可视化</el-menu-item>
-        <el-menu-item index="/analytics">问答分析</el-menu-item>
-        <el-menu-item index="/dashboard">课程看板</el-menu-item>
+        <template v-if="auth.isTeacher">
+          <el-menu-item index="/retrieval-debug">检索可视化</el-menu-item>
+          <el-menu-item index="/analytics">问答分析</el-menu-item>
+          <el-menu-item index="/dashboard">课程看板</el-menu-item>
+        </template>
       </el-menu>
 
       <div class="aside-footer">
@@ -29,8 +33,8 @@
       <el-header class="topbar">
         <div>
           <div class="top-title">{{ $route.meta.title || '高校课程AI学习助手平台项目' }}</div>
-          <div class="course-line" v-if="auth.currentCourseId">当前课程：{{ auth.currentCourseName }} ｜ 角色：{{ roleLabel(auth.currentCourseRole) }}</div>
-          <div class="course-line" v-else>请先进入“我的课程”创建或选择课程</div>
+          <div class="course-line" v-if="auth.currentCourseId">当前课程：{{ auth.currentCourseName }} ｜ 课程角色：{{ roleLabel(auth.currentCourseRole) }}</div>
+          <div class="course-line" v-else>{{ auth.isTeacher ? '请先进入“我的课程”创建或选择课程' : '请先进入“我的课程”选择已加入的课程' }}</div>
         </div>
         <el-button type="primary" @click="newThread">新建会话</el-button>
       </el-header>

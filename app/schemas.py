@@ -88,6 +88,8 @@ class SessionResponse(BaseModel):
     expires_at: str
     # Token认证类型，固定bearer格式，前端请求头按标准格式携带令牌
     token_type: str = "bearer"
+    # 全局账号身份：teacher 教师 / student 学生；旧的临时会话接口不传时默认学生
+    role: Literal["teacher", "student"] = "student"
 
 # 用户注册接口请求体模型，校验前端提交的注册账号密码格式
 class RegisterRequest(BaseModel):
@@ -95,6 +97,8 @@ class RegisterRequest(BaseModel):
     username: str = Field(min_length=3, max_length=32, pattern=r"^[A-Za-z0-9_]+$")
     # 密码字段，SecretStr自动脱敏，日志不会打印明文；长度限制8~128位
     password: SecretStr = Field(min_length=8, max_length=128)
+    # 注册身份：学生/教师二选一。默认学生，更符合真实平台的普通用户注册流程
+    role: Literal["teacher", "student"] = "student"
 
 # 用户账号密码登录接口请求体模型
 class LoginRequest(BaseModel):

@@ -6,9 +6,9 @@
     </el-breadcrumb>
 
     <h1 class="page-title">我的课程</h1>
-    <p class="page-desc">创建或选择当前课程，后续知识库、问答、出题和分析都会围绕这门课工作。</p>
+    <p class="page-desc">{{ auth.isTeacher ? '创建或选择当前课程，后续知识库、问答、出题和分析都会围绕这门课工作。' : '选择你已加入的课程，后续 AI 问答、学习计划和自动出题都会围绕这门课工作。' }}</p>
 
-    <el-card class="panel-card create-card">
+    <el-card v-if="auth.isTeacher" class="panel-card create-card">
       <template #header>
         <div class="card-header">
           <span>创建课程</span>
@@ -31,7 +31,7 @@
       <el-button :loading="loading" @click="loadCourses">刷新课程</el-button>
     </div>
 
-    <el-empty v-if="!courses.length" class="course-empty" description="你还没有课程。可以先在上方创建课程，或让老师把你的 user_id 添加为课程成员。" />
+    <el-empty v-if="!courses.length" class="course-empty" :description="auth.isTeacher ? '你还没有课程，可以先在上方创建课程。' : '你还没有加入任何课程，请联系任课老师添加你为课程成员。'" />
 
     <div v-else class="grid grid-3 course-grid">
       <el-card v-for="course in courses" :key="course.course_id" class="course-card" :class="{ active: course.course_id === auth.currentCourseId }" @click="selectCourse(course)">

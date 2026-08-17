@@ -132,6 +132,12 @@ def current_session(
     return user_id, token
 
 # 线程归属权限统一校验工具：校验用户是否为该thread_id所有者，转换数据库异常为HTTP标准错误
+# 全局教师身份校验：保护创建课程、上传资料、教学分析等教师端能力，防止只靠前端隐藏菜单
+def require_teacher_account(user_id: str) -> None:
+    if auth_store.get_user_role(user_id) != "teacher":
+        raise HTTPException(status_code=403, detail="仅教师账号可操作")
+
+
 def require_owner(user_id: str, thread_id: str) -> None:
     try:
         # 调用认证库校验线程归属关系
@@ -322,25 +328,19 @@ def readiness():
 # 封装工具函数：根据用户ID生成标准化账号登录会话返回体（双Token结构）
 # 返回继承SessionResponse的扩展模型AccountSessionResponse
 def account_response(user_id: str) -> AccountSessionResponse:
-    # 调用存储层创建完整双Token会话：短期access、access过期、长效refresh、refresh过期
+    # 查询账号全局身份，返回给前端用于学生/教师端菜单划分
+    role = auth_store.get_user_role(user_id)
     access, access_exp, refresh, refresh_exp = auth_store.create_account_session(user_id)
-    # 组装标准返回模型，封装用户ID、两套令牌及各自过期时间给前端
     return AccountSessionResponse(
-        # 当前登录用户唯一标识
         user_id=user_id,
-        # 短期业务鉴权令牌access_token
         access_token=access,
-        # access_token的UTC过期ISO字符串
         expires_at=access_exp,
-        # 长效续期刷新令牌refresh_token
         refresh_token=refresh,
-        # refresh_token的UTC过期ISO字符串
         refresh_expires_at=refresh_exp,
+        role=role,
     )
 
 
-# 用户注册接口 POST /auth/register
-# response_model 约束返回数据格式为账号会话模型；status_code=201 标准资源创建成功状态码
 @app.post("/auth/register", response_model=AccountSessionResponse, status_code=201, tags=["认证"], summary="注册账号")
 def register(request: RegisterRequest):
     try:
@@ -349,6 +349,7 @@ def register(request: RegisterRequest):
             request.username,
             # SecretStr专用方法，取出加密存储的原始明文密码用于哈希
             request.password.get_secret_value(),
+            request.role,
         )
     # 捕获业务校验异常：用户名重复、用户名长度不足等ValueError
     except ValueError as exc:
@@ -387,6 +388,8 @@ def refresh_account_session(request: RefreshTokenRequest):
     except PermissionError as exc:
         # 转为401未授权错误，告知前端刷新凭证失效
         raise HTTPException(status_code=401, detail=str(exc)) from exc
+    # 查询账号身份，刷新登录态时同步给前端恢复菜单权限
+    role = auth_store.get_user_role(user_id)
     # 组装全新双Token会话返回，前端替换本地旧令牌
     return AccountSessionResponse(
         user_id=user_id,
@@ -394,6 +397,7 @@ def refresh_account_session(request: RefreshTokenRequest):
         expires_at=access_exp,
         refresh_token=refresh,
         refresh_expires_at=refresh_exp,
+        role=role,
     )
 
 
@@ -423,6 +427,7 @@ def create_course(
     session: tuple[str, str] = Depends(current_session),
 ):
     user_id, _ = session
+    require_teacher_account(user_id)
     course = course_store.create_course(
         course_name=request.course_name,
         description=request.description,

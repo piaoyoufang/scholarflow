@@ -11,21 +11,28 @@
           <el-input v-model="form.topic" placeholder="例如：RAG 检索增强生成" />
         </el-form-item>
 
-        <div class="grid grid-3">
-          <el-form-item label="题目数量">
-            <el-input-number v-model="form.question_count" :min="1" :max="20" />
-          </el-form-item>
-          <el-form-item label="题型">
-            <el-select v-model="form.question_type" placeholder="请选择题型">
-              <el-option v-for="item in typeOptions" :key="item.value" :label="item.label" :value="item.value" />
-            </el-select>
-          </el-form-item>
-          <el-form-item label="难度">
-            <el-select v-model="form.difficulty" placeholder="请选择难度">
-              <el-option v-for="item in difficultyOptions" :key="item.value" :label="item.label" :value="item.value" />
-            </el-select>
-          </el-form-item>
-        </div>
+        <!-- 改动点：使用 Element Plus 响应式栅格，PC 三列，手机自动变一列 -->
+        <el-row :gutter="16" class="responsive-row">
+          <el-col :xs="24" :sm="12" :md="8">
+            <el-form-item label="题目数量">
+              <el-input-number v-model="form.question_count" :min="1" :max="20" />
+            </el-form-item>
+          </el-col>
+          <el-col :xs="24" :sm="12" :md="8">
+            <el-form-item label="题型">
+              <el-select v-model="form.question_type" placeholder="请选择题型">
+                <el-option v-for="item in typeOptions" :key="item.value" :label="item.label" :value="item.value" />
+              </el-select>
+            </el-form-item>
+          </el-col>
+          <el-col :xs="24" :sm="12" :md="8">
+            <el-form-item label="难度">
+              <el-select v-model="form.difficulty" placeholder="请选择难度">
+                <el-option v-for="item in difficultyOptions" :key="item.value" :label="item.label" :value="item.value" />
+              </el-select>
+            </el-form-item>
+          </el-col>
+        </el-row>
 
         <el-button type="primary" :loading="loading" @click="generate">生成题目</el-button>
       </el-form>

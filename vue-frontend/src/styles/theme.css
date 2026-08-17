@@ -16,7 +16,7 @@
   --shadow-soft: 0 12px 30px rgba(15,23,42,.12);
 }
 * { box-sizing: border-box; }
-html, body, #app { margin: 0; min-height: 100%; }
+html, body, #app { margin: 0; min-height: 100%; max-width: 100%; overflow-x: hidden; }
 body {
   font-family: Inter, "PingFang SC", "Microsoft YaHei", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   background: radial-gradient(circle at 12% 10%, rgba(59,130,246,.32), transparent 28rem), radial-gradient(circle at 86% 12%, rgba(6,182,212,.18), transparent 26rem), linear-gradient(135deg, #080d1a, #111827 48%, #0f172a);
@@ -48,3 +48,117 @@ a { color: inherit; text-decoration: none; }
 .markdown-body code { padding: 2px 6px; border-radius: 6px; background: #e2e8f0; }
 .markdown-body pre code { background: transparent; padding: 0; }
 @media (max-width: 980px) { .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; } }
+
+/* 改动点：移动端统一响应式适配，避免表格、表单、卡片和按钮挤压溢出 */
+@media (max-width: 768px) {
+  .page-title {
+    font-size: 24px;
+    line-height: 1.25;
+  }
+
+  .page-desc {
+    margin-bottom: 16px;
+    font-size: 13px;
+  }
+
+  .el-card__body {
+    padding: 16px;
+  }
+
+  .panel-card,
+  .empty-state {
+    border-radius: 18px;
+  }
+
+  .toolbar {
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  .toolbar > *,
+  .toolbar .el-button {
+    width: 100%;
+  }
+
+  .el-form-item {
+    margin-bottom: 16px;
+  }
+
+  .el-input,
+  .el-select,
+  .el-input-number,
+  .el-date-editor,
+  .el-button {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .el-input-number .el-input {
+    width: 100%;
+  }
+
+  .el-textarea__inner {
+    min-height: 96px !important;
+  }
+
+  .el-table {
+    width: 100%;
+    overflow-x: auto;
+  }
+
+  .table-card {
+    overflow-x: auto;
+  }
+
+  .el-table__inner-wrapper {
+    min-width: 680px;
+  }
+
+  .el-table__body-wrapper,
+  .el-table__header-wrapper {
+    overflow-x: auto;
+  }
+
+  .el-dialog {
+    width: calc(100vw - 28px) !important;
+    margin: 12vh auto 0 !important;
+  }
+
+  .el-message-box {
+    width: calc(100vw - 28px) !important;
+  }
+
+  .result-header,
+  .history-item,
+  .question-top,
+  .course-top {
+    flex-direction: column;
+    align-items: stretch !important;
+  }
+
+  .history-main b,
+  .course-card h3 {
+    white-space: normal !important;
+  }
+
+  .answer-grid,
+  .plan-list,
+  .question-list {
+    grid-template-columns: 1fr !important;
+  }
+
+  .el-upload,
+  .el-upload-dragger {
+    width: 100% !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .el-card__body {
+    padding: 14px;
+  }
+
+  .grid {
+    gap: 12px;
+  }
+}

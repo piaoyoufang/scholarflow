@@ -11,19 +11,26 @@
           <el-input v-model="form.goal" type="textarea" :rows="3" placeholder="例如：7天内掌握本课程的 RAG 项目开发流程" />
         </el-form-item>
 
-        <div class="grid grid-3">
-          <el-form-item label="计划天数">
-            <el-input-number v-model="form.days" :min="1" :max="30" />
-          </el-form-item>
-          <el-form-item label="每天学习分钟数">
-            <el-input-number v-model="form.daily_minutes" :min="10" :max="600" />
-          </el-form-item>
-          <el-form-item label="难度">
-            <el-select v-model="form.difficulty" placeholder="请选择难度">
-              <el-option v-for="item in difficultyOptions" :key="item.value" :label="item.label" :value="item.value" />
-            </el-select>
-          </el-form-item>
-        </div>
+        <!-- 改动点：使用 Element Plus 响应式栅格，PC 三列，手机自动变一列 -->
+        <el-row :gutter="16" class="responsive-row">
+          <el-col :xs="24" :sm="12" :md="8">
+            <el-form-item label="计划天数">
+              <el-input-number v-model="form.days" :min="1" :max="30" />
+            </el-form-item>
+          </el-col>
+          <el-col :xs="24" :sm="12" :md="8">
+            <el-form-item label="每天学习分钟数">
+              <el-input-number v-model="form.daily_minutes" :min="10" :max="600" />
+            </el-form-item>
+          </el-col>
+          <el-col :xs="24" :sm="12" :md="8">
+            <el-form-item label="难度">
+              <el-select v-model="form.difficulty" placeholder="请选择难度">
+                <el-option v-for="item in difficultyOptions" :key="item.value" :label="item.label" :value="item.value" />
+              </el-select>
+            </el-form-item>
+          </el-col>
+        </el-row>
 
         <el-button type="primary" :loading="loading" @click="generate">生成学习计划</el-button>
       </el-form>

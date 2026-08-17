@@ -4,11 +4,11 @@
     <div v-if="!auth.hasCourse" class="empty-state">请先在“我的课程”里创建或选择一门课程。</div>
     <template v-else>
       <el-card class="chat-card">
-        <div v-if="!auth.messages.length" class="empty-state">输入课程相关问题，系统会检索知识库并生成带引用回答。</div>
-        <div v-for="(m,i) in auth.messages" :key="i" class="msg" :class="m.role">
-          <div class="role">{{ m.role === 'user' ? '我' : 'AI 助手' }}</div>
-          <MarkdownRenderer v-if="m.role !== 'user'" :source="m.content" />
-          <div v-else>{{ m.content }}</div>
+        <div v-if="!displayMessages.length" class="empty-state">输入课程相关问题，系统会检索知识库并生成带引用回答。</div>
+        <div v-for="(m,i) in displayMessages" :key="i" class="msg" :class="m.role">
+          <div class="role">{{ m.role === 'user' ? '我的问题' : 'AI 助手' }}</div>
+          <MarkdownRenderer v-if="m.role === 'assistant'" :source="m.content" />
+          <div v-else class="user-question">{{ m.content }}</div>
         </div>
       </el-card>
       <el-card v-if="auth.lastQuestion && auth.lastAnswer" class="panel-card feedback">
@@ -28,15 +28,48 @@
   </div>
 </template>
 <script setup>
-import { reactive, ref } from 'vue'
+import { computed, reactive, ref } from 'vue'
 import MarkdownRenderer from '../components/MarkdownRenderer.vue'
 import { ElMessage } from 'element-plus'
 import { courseApi } from '../api'
 import { errorMessage } from '../api/request'
 import { useAuthStore } from '../stores/auth'
 const auth=useAuthStore(); const question=ref(''); const asking=ref(false); const reasons=['答案不准确','没有引用','引用不相关','回答太少','没看懂','其他']; const down=reactive({reason:'答案不准确',comment:''})
+function normalizeRole(role) {
+  if (['user', 'human'].includes(role)) return 'user'
+  return 'assistant'
+}
+function normalizeContent(message) {
+  if (typeof message === 'string') return message
+  return message?.content || message?.text || message?.answer || ''
+}
+const displayMessages = computed(() => {
+  const normalized = (auth.messages || [])
+    .map((message) => ({
+      role: normalizeRole(message.role || message.type),
+      content: normalizeContent(message)
+    }))
+    .filter((message) => message.content)
+
+  const hasLastQuestion = normalized.some(
+    (message) => message.role === 'user' && message.content === auth.lastQuestion
+  )
+  const hasLastAnswer = normalized.some(
+    (message) => message.role === 'assistant' && message.content === auth.lastAnswer
+  )
+  if (auth.lastQuestion && auth.lastAnswer && hasLastAnswer && !hasLastQuestion) {
+    const answerIndex = normalized.findIndex(
+      (message) => message.role === 'assistant' && message.content === auth.lastAnswer
+    )
+    normalized.splice(Math.max(answerIndex, 0), 0, {
+      role: 'user',
+      content: auth.lastQuestion
+    })
+  }
+  return normalized
+})
 function withCitations(result){ let txt=String(result.answer ?? JSON.stringify(result)); const cs=result.citations||[]; if(cs.length){ txt+='\n\n#### 引用来源\n'+cs.map(c=>`- ${c.source_name||c.source||'未知来源'} ${c.locator||''}: ${c.quote||c.content||''}`).join('\n') } return txt }
-async function ask(){ if(!question.value.trim()) return; const q=question.value.trim(); auth.lastQuestion=q; auth.messages.push({role:'user',content:q}); question.value=''; asking.value=true; try{ const {data}=await courseApi.ask(auth.currentCourseId,{question:q,thread_id:auth.threadId}); const answer=withCitations(data); auth.lastAnswer=answer; auth.messages.push({role:'assistant',content:answer}); auth.persist() }catch(e){ auth.messages.push({role:'assistant',content:`请求失败：${errorMessage(e)}`}); auth.persist() }finally{ asking.value=false } }
+async function ask(){ if(!question.value.trim()) return; const q=question.value.trim(); auth.lastQuestion=q; auth.messages.push({role:'user',content:q}); auth.persist(); question.value=''; asking.value=true; try{ const {data}=await courseApi.ask(auth.currentCourseId,{question:q,thread_id:auth.threadId}); const answer=withCitations(data); auth.lastAnswer=answer; auth.messages.push({role:'assistant',content:answer}); auth.persist() }catch(e){ auth.messages.push({role:'assistant',content:`请求失败：${errorMessage(e)}`}); auth.persist() }finally{ asking.value=false } }
 async function feedbackUp(){ await courseApi.feedback(auth.currentCourseId,{thread_id:auth.threadId,question:auth.lastQuestion,answer:auth.lastAnswer,rating:'up',reason:'',comment:''}); ElMessage.success('感谢反馈') }
 async function feedbackDown(){ await courseApi.feedback(auth.currentCourseId,{thread_id:auth.threadId,question:auth.lastQuestion,answer:auth.lastAnswer,rating:'down',reason:down.reason,comment:down.comment}); ElMessage.success('反馈已记录') }
 </script>
@@ -61,6 +94,11 @@ async function feedbackDown(){ await courseApi.feedback(auth.currentCourseId,{th
   color: #fff;
   border-top-right-radius: 8px;
   box-shadow: 0 12px 26px rgba(37, 99, 235, .22);
+}
+.user-question {
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-weight: 700;
 }
 .msg.assistant {
   background: rgba(15, 23, 42, .70);

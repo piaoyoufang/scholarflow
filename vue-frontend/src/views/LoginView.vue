@@ -73,11 +73,17 @@ const loginForm = reactive({ username: '', password: '' })
 const registerForm = reactive({ username: '', password: '', confirmPassword: '', role: 'student' })
 
 const loginRules = {
-  username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
+  username: [
+    { required: true, message: '请输入用户名', trigger: 'blur' },
+    { pattern: /^[A-Za-z0-9_]{3,32}$/, message: '用户名只能包含英文、数字、下划线，长度 3-32 位', trigger: 'blur' }
+  ],
   password: [{ required: true, message: '请输入密码', trigger: 'blur' }]
 }
 const registerRules = {
-  username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
+  username: [
+    { required: true, message: '请输入用户名', trigger: 'blur' },
+    { pattern: /^[A-Za-z0-9_]{3,32}$/, message: '用户名只能包含英文、数字、下划线，长度 3-32 位', trigger: 'blur' }
+  ],
   password: [{ required: true, message: '请输入密码', trigger: 'blur' }, { min: 8, message: '密码至少需要 8 个字符', trigger: 'blur' }],
   confirmPassword: [
     { required: true, message: '请再次输入密码', trigger: 'blur' },

@@ -34,7 +34,19 @@ request.interceptors.response.use(
 )
 
 export function errorMessage(error) {
-  return error?.response?.data?.detail || error?.message || '请求失败，请稍后重试'
+  const detail = error?.response?.data?.detail
+  if (Array.isArray(detail)) {
+    return detail
+      .map((item) => {
+        const field = Array.isArray(item.loc) ? item.loc.slice(1).join('.') : ''
+        return field ? `${field}：${item.msg}` : item.msg
+      })
+      .filter(Boolean)
+      .join('；') || '请求参数不正确'
+  }
+  if (typeof detail === 'string') return detail
+  if (detail && typeof detail === 'object') return detail.msg || JSON.stringify(detail)
+  return error?.message || '请求失败，请稍后重试'
 }
 
 export default request

@@ -33,7 +33,7 @@
           <div v-else class="user-question">{{ m.content }}</div>
         </div>
       </el-card>
-      <el-card v-if="auth.lastQuestion && auth.lastAnswer" class="panel-card feedback">
+      <el-card v-if="auth.lastQuestion && auth.lastAnswer && !feedbackSubmitted" class="panel-card feedback">
         <div class="toolbar"><h2>对上一条回答反馈</h2></div>
         <el-button type="primary" @click="feedbackUp">有帮助</el-button>
         <el-form class="down-form" :model="down" label-position="top">
@@ -60,6 +60,7 @@ import { errorMessage } from '../api/request'
 import { useAuthStore } from '../stores/auth'
 const auth=useAuthStore(); const question=ref(''); const asking=ref(false); const reasons=['答案不准确','没有引用','引用不相关','回答太少','没看懂','其他']; const down=reactive({reason:'答案不准确',comment:''})
 const sessions = ref([])
+const feedbackSubmitted = ref(false)
 function normalizeRole(role) {
   if (['user', 'human'].includes(role)) return 'user'
   return 'assistant'
@@ -95,7 +96,7 @@ const displayMessages = computed(() => {
   return normalized
 })
 function withCitations(result){ let txt=String(result.answer ?? JSON.stringify(result)); const cs=result.citations||[]; if(cs.length){ txt+='\n\n#### 引用来源\n'+cs.map(c=>`- ${c.source_name||c.source||'未知来源'} ${c.locator||''}: ${c.quote||c.content||''}`).join('\n') } return txt }
-async function ask(){ if(!question.value.trim()) return; const q=question.value.trim(); auth.lastQuestion=q; auth.messages.push({role:'user',content:q}); auth.persist(); question.value=''; asking.value=true; try{ const {data}=await courseApi.ask(auth.currentCourseId,{question:q,thread_id:auth.threadId}); const answer=withCitations(data); auth.lastAnswer=answer; auth.messages.push({role:'assistant',content:answer}); auth.persist(); await loadThreads() }catch(e){ auth.messages.push({role:'assistant',content:`请求失败：${errorMessage(e)}`}); auth.persist() }finally{ asking.value=false } }
+async function ask(){ if(!question.value.trim()) return; const q=question.value.trim(); feedbackSubmitted.value=true; auth.lastQuestion=q; auth.messages.push({role:'user',content:q}); auth.persist(); question.value=''; asking.value=true; try{ const {data}=await courseApi.ask(auth.currentCourseId,{question:q,thread_id:auth.threadId}); const answer=withCitations(data); auth.lastAnswer=answer; auth.messages.push({role:'assistant',content:answer}); feedbackSubmitted.value=false; auth.persist(); await loadThreads() }catch(e){ auth.messages.push({role:'assistant',content:`请求失败：${errorMessage(e)}`}); auth.persist() }finally{ asking.value=false } }
 async function loadThreads() {
   try {
     const { data } = await threadApi.list()
@@ -114,6 +115,7 @@ async function openThread(threadId) {
     const lastAssistant = [...messages].reverse().find((message) => message.role === 'assistant')
     auth.lastQuestion = lastUser?.content || ''
     auth.lastAnswer = lastAssistant?.content || ''
+    feedbackSubmitted.value = true
     auth.persist()
   } catch (e) {
     ElMessage.error(errorMessage(e))
@@ -121,6 +123,7 @@ async function openThread(threadId) {
 }
 function newConversation() {
   auth.newThread()
+  feedbackSubmitted.value = true
   ElMessage.success('已创建新会话')
 }
 async function removeThread(threadId) {
@@ -136,8 +139,8 @@ async function removeThread(threadId) {
 }
 watch(() => auth.currentCourseId, loadThreads)
 onMounted(loadThreads)
-async function feedbackUp(){ await courseApi.feedback(auth.currentCourseId,{thread_id:auth.threadId,question:auth.lastQuestion,answer:auth.lastAnswer,rating:'up',reason:'',comment:''}); ElMessage.success('感谢反馈') }
-async function feedbackDown(){ await courseApi.feedback(auth.currentCourseId,{thread_id:auth.threadId,question:auth.lastQuestion,answer:auth.lastAnswer,rating:'down',reason:down.reason,comment:down.comment}); ElMessage.success('反馈已记录') }
+async function feedbackUp(){ await courseApi.feedback(auth.currentCourseId,{thread_id:auth.threadId,question:auth.lastQuestion,answer:auth.lastAnswer,rating:'up',reason:'',comment:''}); feedbackSubmitted.value=true; ElMessage.success('感谢反馈') }
+async function feedbackDown(){ await courseApi.feedback(auth.currentCourseId,{thread_id:auth.threadId,question:auth.lastQuestion,answer:auth.lastAnswer,rating:'down',reason:down.reason,comment:down.comment}); feedbackSubmitted.value=true; ElMessage.success('反馈已记录') }
 </script>
 <style scoped>
 .chat-layout { max-width: 1180px; margin: 0 auto; display: grid; grid-template-columns: 250px minmax(0, 1fr); gap: 16px; }

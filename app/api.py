@@ -765,6 +765,12 @@ def ask_course(
         # 捕获异常：课程存在，但用户没有访问权限，返回403禁止访问
         raise HTTPException(status_code=403, detail=str(exc)) from exc
 
+    try:
+        # 课程问答也必须绑定 thread_id 归属，否则前端历史会话列表查不到该会话
+        auth_store.claim_thread(user_id, request.thread_id)
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+
     # 调用LangGraph工作流memory_workflow
     # 输入state：把用户问题、当前课程id传入graph状态
     # course_id会向下传递给内部search检索函数，实现只检索本课程知识库
@@ -804,6 +810,18 @@ def ask_course(
         answer=answer_text,  # 大模型输出的回答文本，必须是字符串，不能是 ResearchAnswer 对象
         citation_count=len(citations),  # 统计引用来源数量，计算列表长度存入数据库
     )
+
+    try:
+        # 用首次问题生成会话标题，让左侧历史会话列表可以显示有意义的标题
+        auth_store.update_thread_title(user_id, request.thread_id, request.question)
+    except (LookupError, PermissionError):
+        logger.exception(
+            "course.ask.thread_title_update_failed",
+            extra={
+                "event": "course.ask.thread_title_update_failed",
+                "details": {"user_id": user_id, "thread_id": request.thread_id},
+            },
+        )
 
     # 课程级问答完成日志：用于后续排查“哪门课程、哪个用户、哪个线程、引用数量多少”
     # 这不是业务数据入库，业务数据已经由 qa_event_store.record_event 写入 SQLite。

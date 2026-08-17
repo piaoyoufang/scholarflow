@@ -36,7 +36,6 @@
           <div class="course-line" v-if="auth.currentCourseId">当前课程：{{ auth.currentCourseName }} ｜ 课程角色：{{ roleLabel(auth.currentCourseRole) }}</div>
           <div class="course-line" v-else>{{ auth.isTeacher ? '请先进入“我的课程”创建或选择课程' : '请先进入“我的课程”选择已加入的课程' }}</div>
         </div>
-        <el-button type="primary" @click="newThread">新建会话</el-button>
       </el-header>
       <el-main class="main"><router-view /></el-main>
     </el-container>
@@ -44,19 +43,12 @@
 </template>
 
 <script setup>
-import { ElMessage } from 'element-plus'
 import { useRouter } from 'vue-router'
 import { authApi } from '../api'
 import { useAuthStore } from '../stores/auth'
 
 const auth = useAuthStore()
 const router = useRouter()
-
-function newThread() {
-  auth.newThread()
-  ElMessage.success('已创建新会话')
-  router.push('/chat')
-}
 
 function roleLabel(role) {
   const map = { teacher: '教师', student: '学生', assistant: '助教', admin: '管理员' }

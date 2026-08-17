@@ -1,5 +1,5 @@
-# 导入获取聊天大模型实例的工厂函数
-from app.models import chat_model
+# 导入获取快速聊天大模型实例的工厂函数，自动出题优先保证响应速度
+from app.models import fast_model
 # 导入RAG检索函数search：混合检索，支持course_id过滤课程知识库
 from app.retrieval.search import search
 # 导入Pydantic结构化输出模型，约束大模型输出测验题的JSON格式
@@ -26,15 +26,15 @@ def generate_quiz(
     RAG出题业务函数：基于课程知识库资料，调用大模型生成结构化测验题目
     :return: QuizResponse Pydantic对象，包含整套题目
     """
-    # RAG检索：以主题作为查询，只检索当前course_id课程知识库，召回8条相关文档块
-    docs = search(query=topic, course_id=course_id, k=8)
+    # RAG检索：以主题作为查询，只检索当前course_id课程知识库，召回5条相关文档块，减少大模型超时概率
+    docs = search(query=topic, course_id=course_id, k=5)
 
     # 列表推导遍历检索结果，取出每一个Document的文本；_score代表忽略相关性分数
     # 使用双换行把多条文档片段拼接成一大段参考上下文，传给大模型
-    context = "\n\n".join([doc.page_content for doc, _score in docs])
+    context = "\n\n".join([doc.page_content for doc, _score in docs])[:6000]
 
-    # 获取大模型实例，开启结构化输出，强制把LLM输出解析校验为QuizResponse模型
-    model = chat_model().with_structured_output(QuizResponse)
+    # 获取快速模型实例，开启结构化输出，强制把LLM输出解析校验为QuizResponse模型
+    model = fast_model().with_structured_output(QuizResponse)
 
     # 调用大模型，组装system+human消息列表执行推理
     return model.invoke(

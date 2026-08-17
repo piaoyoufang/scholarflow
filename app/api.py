@@ -1003,13 +1003,18 @@ def learning_plan(
 
     # 调用业务逻辑函数generate_learning_plan生成学习计划
     # 内部逻辑：RAG检索本课程知识库 → 组装上下文 → LLM结构化输出LearningPlanResponse
-    result = generate_learning_plan(
-        course_id=course_id,                # 传递课程ID，让RAG检索只读取本课程文档，实现知识库隔离
-        goal=request.goal,                  # 用户学习目标，来自请求体
-        days=request.days,                  # 计划总天数，来自请求体
-        difficulty=request.difficulty,      # 难度等级 beginner/intermediate/advanced，来自请求体
-        daily_minutes=request.daily_minutes,# 每日学习分钟数，来自请求体
-    )
+    try:
+        result = generate_learning_plan(
+            course_id=course_id,                # 传递课程ID，让RAG检索只读取本课程文档，实现知识库隔离
+            goal=request.goal,                  # 用户学习目标，来自请求体
+            days=request.days,                  # 计划总天数，来自请求体
+            difficulty=request.difficulty,      # 难度等级 beginner/intermediate/advanced，来自请求体
+            daily_minutes=request.daily_minutes,# 每日学习分钟数，来自请求体
+        )
+    except Exception as exc:
+        if "Timeout" in exc.__class__.__name__:
+            raise HTTPException(status_code=504, detail="大模型生成超时，请稍后重试或缩短学习目标") from exc
+        raise
     result_dict = result.model_dump() if hasattr(result, "model_dump") else dict(result)
     record_id = ""
     try:
@@ -1111,13 +1116,18 @@ def quiz(
 
     # 调用业务函数generate_quiz生成测验，传入全部参数
     # 内部逻辑：search检索课程知识库 → 拼接上下文 → LLM结构化输出QuizResponse
-    result = generate_quiz(
-        course_id=course_id,                # 传递课程ID，用于RAG知识库隔离
-        topic=request.topic,                # 出题主题，取自前端请求体
-        question_count=request.question_count, # 题目数量，取自前端请求体
-        question_type=request.question_type,   # 题型，取自前端请求体
-        difficulty=request.difficulty,          # 难度，取自前端请求体
-    )
+    try:
+        result = generate_quiz(
+            course_id=course_id,                # 传递课程ID，用于RAG知识库隔离
+            topic=request.topic,                # 出题主题，取自前端请求体
+            question_count=request.question_count, # 题目数量，取自前端请求体
+            question_type=request.question_type,   # 题型，取自前端请求体
+            difficulty=request.difficulty,          # 难度，取自前端请求体
+        )
+    except Exception as exc:
+        if "Timeout" in exc.__class__.__name__:
+            raise HTTPException(status_code=504, detail="大模型生成超时，请稍后重试或减少题目数量") from exc
+        raise
     result_dict = result.model_dump() if hasattr(result, "model_dump") else dict(result)
     record_id = ""
     try:

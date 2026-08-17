@@ -29,7 +29,7 @@ def fast_model() -> ChatOpenAI:
         api_key=settings.dashscope_api_key,
         base_url=settings.dashscope_base_url,
         temperature=0,
-        timeout=settings.fast_timeout_seconds,
+        timeout=max(settings.fast_timeout_seconds, 90),
         max_retries=0,
     )
 

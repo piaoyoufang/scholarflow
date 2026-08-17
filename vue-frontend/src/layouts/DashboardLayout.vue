@@ -113,10 +113,73 @@ async function logout() {
 :global(.mobile-drawer .el-menu-item.is-active) { background: linear-gradient(135deg, rgba(37,99,235,.95), rgba(14,165,233,.82)); color: #fff; }
 @media (max-width: 900px) {
   .aside { display:none; }
-  .mobile-menu-btn { display: inline-flex; }
+  /* 新增：移动端响应式，避免全局按钮 100% 宽度把顶部撑高 */
+  .mobile-menu-btn {
+    display: inline-flex;
+    width: auto !important;
+    min-width: 72px;
+    height: 36px;
+    min-height: 36px;
+    padding: 0 14px;
+    flex: 0 0 auto;
+  }
   .topbar { height: auto; min-height: 68px; padding: 12px 14px; align-items: flex-start; justify-content: flex-start; }
   .top-title { font-size: 18px; line-height: 1.3; }
   .course-line { max-width: calc(100vw - 112px); white-space: normal; line-height: 1.5; }
   .main { padding: 14px; overflow-x: hidden; }
+}
+/* 新增：移动端抽屉菜单紧凑化，仅影响手机/窄屏抽屉，不影响 PC 侧边栏 */
+@media (max-width: 768px) {
+  .app-layout {
+    min-height: 100dvh;
+  }
+
+  .topbar {
+    min-height: 58px;
+    gap: 10px;
+    padding: 10px 12px;
+  }
+
+  .top-title {
+    font-size: 16px;
+  }
+
+  .course-line {
+    max-width: calc(100vw - 104px);
+    margin-top: 3px;
+    font-size: 12px;
+    line-height: 1.35;
+  }
+
+  .main {
+    padding: 12px;
+  }
+
+  :global(.mobile-drawer .el-drawer__body) {
+    padding: 10px 12px;
+  }
+
+  :global(.mobile-drawer .el-drawer__header) {
+    padding: 14px 16px 10px;
+  }
+
+  :global(.mobile-drawer .el-menu) {
+    gap: 2px;
+  }
+
+  :global(.mobile-drawer .el-menu-item) {
+    height: 40px;
+    line-height: 40px;
+    margin-bottom: 2px;
+    padding-left: 14px !important;
+    border-radius: 10px;
+    font-size: 14px;
+  }
+
+  .mobile-logout {
+    height: 40px;
+    min-height: 40px;
+    margin-top: 10px;
+  }
 }
 </style>

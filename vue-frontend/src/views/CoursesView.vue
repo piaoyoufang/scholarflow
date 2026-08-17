@@ -16,13 +16,22 @@
         </div>
       </template>
       <el-form ref="courseFormRef" :model="form" :rules="rules" label-position="top" class="course-form">
-        <el-form-item label="课程名称" prop="course_name">
-          <el-input v-model="form.course_name" placeholder="例如：AI应用开发实战课" clearable />
-        </el-form-item>
-        <el-form-item label="课程说明" prop="description">
-          <el-input v-model="form.description" type="textarea" :rows="4" placeholder="这门课包含 RAG、Agent、评估、部署等资料。" />
-        </el-form-item>
-        <el-button type="primary" :loading="creating" :disabled="creating" @click="createCourse">创建课程</el-button>
+        <!-- 新增：Element Plus 响应式栅格，小屏自动单列，PC 端仍保持原有纵向表单视觉 -->
+        <el-row :gutter="16">
+          <el-col :xs="24">
+            <el-form-item label="课程名称" prop="course_name">
+              <el-input v-model="form.course_name" placeholder="例如：AI应用开发实战课" clearable />
+            </el-form-item>
+          </el-col>
+          <el-col :xs="24">
+            <el-form-item label="课程说明" prop="description">
+              <el-input v-model="form.description" type="textarea" :rows="4" placeholder="这门课包含 RAG、Agent、评估、部署等资料。" />
+            </el-form-item>
+          </el-col>
+          <el-col :xs="24" :sm="10" :md="7">
+            <el-button type="primary" :loading="creating" :disabled="creating" @click="createCourse">创建课程</el-button>
+          </el-col>
+        </el-row>
       </el-form>
     </el-card>
 
@@ -34,16 +43,23 @@
         </div>
       </template>
       <el-form ref="joinFormRef" :model="joinForm" :rules="joinRules" label-position="top" class="join-form">
-        <el-form-item label="课程码" prop="invite_code">
-          <el-input
-            v-model="joinForm.invite_code"
-            placeholder="请输入老师提供的课程码，例如 AI8K2P6Q"
-            clearable
-            maxlength="32"
-            @keyup.enter="joinCourse"
-          />
-        </el-form-item>
-        <el-button type="primary" :loading="joining" :disabled="joining" @click="joinCourse">加入课程</el-button>
+        <!-- 新增：Element Plus 响应式栅格，手机端输入框/按钮占满容器 -->
+        <el-row :gutter="16">
+          <el-col :xs="24" :sm="16" :md="14">
+            <el-form-item label="课程码" prop="invite_code">
+              <el-input
+                v-model="joinForm.invite_code"
+                placeholder="请输入老师提供的课程码，例如 AI8K2P6Q"
+                clearable
+                maxlength="32"
+                @keyup.enter="joinCourse"
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :xs="24" :sm="8" :md="6" class="join-action-col">
+            <el-button type="primary" :loading="joining" :disabled="joining" @click="joinCourse">加入课程</el-button>
+          </el-col>
+        </el-row>
       </el-form>
     </el-card>
 
@@ -206,6 +222,7 @@ onMounted(loadCourses)
 .create-card { margin-bottom: 24px; }
 .card-header { display: flex; align-items: center; justify-content: space-between; font-weight: 900; color: #0f172a; }
 .course-form, .join-form { display: grid; gap: 4px; }
+.join-action-col { display: flex; align-items: flex-end; padding-bottom: 18px; }
 .toolbar { color:#fff; }
 .toolbar h2 { margin: 0; font-size: 20px; font-weight: 900; }
 .course-empty { padding: 46px 0; border: 1px dashed rgba(147,197,253,.55); border-radius: 22px; background: rgba(239,246,255,.08); }
@@ -225,4 +242,109 @@ onMounted(loadCourses)
 .table-code { display: flex; align-items: center; gap: 8px; }
 .table-code span { font-weight: 900; color: #1d4ed8; letter-spacing: .08em; }
 .table-card { margin-top: 22px; }
+/* 新增：移动端响应式，仅作用于 <768px，移除课程页多余高度/留白并优化课程码布局 */
+@media (max-width: 768px) {
+  .courses-page {
+    max-width: 100%;
+    margin: 0;
+  }
+
+  .breadcrumb {
+    margin-bottom: 10px;
+    font-size: 12px;
+  }
+
+  .create-card {
+    margin-bottom: 16px;
+  }
+
+  .card-header {
+    gap: 10px;
+    align-items: flex-start;
+  }
+
+  .course-form,
+  .join-form {
+    gap: 0;
+  }
+
+  .join-action-col {
+    display: block;
+    padding-bottom: 0;
+  }
+
+  .course-form :deep(.el-button),
+  .join-form :deep(.el-button) {
+    width: 100%;
+  }
+
+  .toolbar {
+    margin: 16px 0 12px;
+  }
+
+  .toolbar h2 {
+    font-size: 18px;
+  }
+
+  .course-empty {
+    padding: 24px 10px;
+    border-radius: 18px;
+  }
+
+  .course-grid {
+    margin-top: 0;
+    gap: 12px;
+  }
+
+  .course-card {
+    min-height: auto;
+  }
+
+  .course-card:hover {
+    transform: none;
+  }
+
+  .course-top {
+    gap: 8px;
+  }
+
+  .course-card h3 {
+    margin-bottom: 6px;
+    font-size: 17px;
+  }
+
+  .course-card p {
+    min-height: auto;
+    font-size: 13px;
+    line-height: 1.65;
+  }
+
+  .invite-code {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: 8px;
+    margin-top: 12px;
+    padding: 10px;
+    border-radius: 12px;
+  }
+
+  .invite-code strong {
+    min-width: 0;
+    font-size: 14px;
+    letter-spacing: .08em;
+    word-break: break-all;
+  }
+
+  .invite-code :deep(.el-button) {
+    grid-column: 1 / -1;
+    width: 100%;
+    justify-content: center;
+    margin-top: 2px;
+  }
+
+  .table-card {
+    margin-top: 16px;
+  }
+}
 </style>

@@ -152,4 +152,91 @@ p { max-width: 680px; color:#475569; line-height: 1.9; font-size: 17px; }
 .role-tip { margin-top: 8px; color: #64748b; font-size: 12px; line-height: 1.6; }
 .full { width: 100%; margin-top: 8px; }
 @media (max-width: 1040px) { .login-page { grid-template-columns:1fr; } .login-card { justify-self: stretch; width: 100%; } }
+/* 新增：移动端响应式，仅作用于 <768px，压缩首页留白和标题尺寸，PC 端保持不变 */
+@media (max-width: 768px) {
+  .login-page {
+    min-height: 100dvh;
+    align-content: start;
+    gap: 14px;
+    padding: 14px;
+  }
+
+  .hero {
+    min-height: auto;
+    justify-content: flex-start;
+    padding: 22px 18px;
+    border-radius: 22px;
+  }
+
+  .badge {
+    padding: 6px 10px;
+    font-size: 12px;
+  }
+
+  h1 {
+    margin: 14px 0 10px;
+    font-size: 31px;
+    line-height: 1.14;
+    letter-spacing: -.045em;
+  }
+
+  p {
+    font-size: 14px;
+    line-height: 1.7;
+  }
+
+  .chips {
+    gap: 8px;
+    margin-top: 16px;
+  }
+
+  .chips :deep(.el-tag) {
+    height: 28px;
+    padding: 0 10px;
+    font-size: 12px;
+  }
+
+  .chips :deep(.chip-analysis) {
+    min-width: auto;
+  }
+
+  .login-card {
+    padding: 4px;
+    border-radius: 22px;
+  }
+
+  .login-card h2 {
+    margin-top: 4px;
+    font-size: 24px;
+  }
+
+  .login-card p {
+    margin-bottom: 12px;
+    font-size: 13px;
+  }
+
+  .auth-tabs :deep(.el-tabs__item) {
+    height: 40px;
+    font-size: 14px;
+  }
+
+  .role-tip {
+    font-size: 11px;
+  }
+}
+
+@media (max-width: 420px) {
+  .login-page {
+    padding: 10px;
+  }
+
+  .hero {
+    padding: 18px 14px;
+    border-radius: 18px;
+  }
+
+  h1 {
+    font-size: 28px;
+  }
+}
 </style>

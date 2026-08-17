@@ -232,9 +232,9 @@ class CourseStore:
 
     def add_member(self, course_id: str, user_id: str, role_in_course: str = "student") -> None:
         if role_in_course not in {"teacher", "student"}:
-            raise ValueError("role_in_course ??? teacher ? student")
+            raise ValueError("课程角色只能是 teacher 或 student")
         if not self.get_course(course_id):
-            raise LookupError("?????")
+            raise LookupError("课程不存在")
         now = utc_now()
         if self.use_mysql:
             execute(
@@ -285,15 +285,15 @@ class CourseStore:
 
     def require_course_access(self, course_id: str, user_id: str) -> None:
         if not self.get_course(course_id):
-            raise LookupError("?????")
+            raise LookupError("课程不存在")
         if not self.get_member_role(course_id, user_id):
-            raise PermissionError("????????????")
+            raise PermissionError("你不是该课程成员，无权访问")
 
     def require_course_teacher(self, course_id: str, user_id: str) -> None:
         if not self.get_course(course_id):
-            raise LookupError("?????")
+            raise LookupError("课程不存在")
         if self.get_member_role(course_id, user_id) != "teacher":
-            raise PermissionError("?????????????")
+            raise PermissionError("仅课程教师可操作")
 
 
 course_store = CourseStore()

@@ -131,7 +131,7 @@ class KnowledgeLibrary:
 
     def update_status(self, source_id: str, status: str, chunk_count: int | None = None) -> None:
         if status not in {"processing", "success", "failed"}:
-            raise ValueError("status ??? processing/success/failed")
+            raise ValueError("文档状态只能是 processing、success 或 failed")
         now = utc_now()
         if self.use_mysql:
             if chunk_count is None:
@@ -152,7 +152,7 @@ class KnowledgeLibrary:
     def delete_document_record(self, source_id: str) -> dict:
         document = self.get_document(source_id)
         if not document:
-            raise LookupError("?????")
+            raise LookupError("文档不存在")
         if self.use_mysql:
             execute("DELETE FROM documents WHERE source_id = :source_id", {"source_id": source_id})
         else:

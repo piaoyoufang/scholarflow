@@ -16,7 +16,7 @@ def load_file(path: str, course_id: str | None = None, source_id: str | None = N
     elif file.suffix.lower() in {".md", ".txt"}:
         docs = TextLoader(str(file), encoding="utf-8-sig").load()
     else:
-        raise ValueError("??? PDF?Markdown ? TXT")
+        raise ValueError("仅支持 PDF、Markdown 或 TXT 文件")
 
     splitter = RecursiveCharacterTextSplitter(chunk_size=800, chunk_overlap=120, add_start_index=True)
     chunks = splitter.split_documents(docs)

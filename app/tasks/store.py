@@ -74,7 +74,7 @@ class TaskStore:
         now = utc_now()
         params = {"task_id": task_id, "course_id": course_id, "source_id": source_id,
                   "owner_user_id": owner_user_id, "status": "pending", "progress": 0,
-                  "message": "????", "result_json": "{}", "error": "", "created_at": now, "updated_at": now}
+                  "message": "等待处理", "result_json": "{}", "error": "", "created_at": now, "updated_at": now}
         if self.use_mysql:
             execute("""
                 INSERT INTO ingestion_tasks(

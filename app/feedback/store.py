@@ -67,9 +67,9 @@ class FeedbackStore:
             """)
 
     def create_feedback(self, *, course_id: str, user_id: str, thread_id: str,
-                        question: str, answer: str, rating: str, reason: str = "", comment: str = "") -> str:
+        question: str, answer: str, rating: str, reason: str = "", comment: str = "") -> str:
         if rating not in {"up", "down"}:
-            raise ValueError("rating ??? up ? down")
+            raise ValueError("反馈类型只能是 up 或 down")
         feedback_id = str(uuid4())
         params = {"feedback_id": feedback_id, "course_id": course_id, "user_id": user_id,
                   "thread_id": thread_id, "question": question, "answer": answer,

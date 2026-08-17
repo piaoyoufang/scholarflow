@@ -11,9 +11,9 @@ from app.runtime_metrics import runtime_metrics
 def search(query: str, k: int = 6, course_id: str | None = None) -> list[tuple[Document, float]]:
     """RAG ????????? + BM25 ???? + ?? Rerank ???"""
     if not query.strip():
-        raise ValueError("query ????")
+        raise ValueError("查询内容不能为空")
     if k < 1:
-        raise ValueError("k ?????? 1")
+        raise ValueError("召回数量 k 必须大于等于 1")
 
     candidate_k = max(k * 4, 24)
 

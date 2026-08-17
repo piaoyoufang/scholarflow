@@ -83,21 +83,21 @@ class QAEventStore:
 
     def update_process_status(self, event_id: str, status: str, note: str = "") -> None:
         if status not in {"pending", "processing", "resolved", "ignored"}:
-            raise ValueError("status ??? pending/processing/resolved/ignored")
+            raise ValueError("处理状态只能是 pending、processing、resolved 或 ignored")
         if self.use_mysql:
             rowcount = execute("""
                 UPDATE qa_events SET process_status = :status, process_note = :note, processed_at = :processed_at
                 WHERE event_id = :event_id
             """, {"status": status, "note": note, "processed_at": utc_now(), "event_id": event_id})
             if rowcount == 0:
-                raise LookupError("???????")
+                raise LookupError("问答事件不存在")
             return
         with self.connect() as conn:
             cursor = conn.execute("""
                 UPDATE qa_events SET process_status = ?, process_note = ?, processed_at = ? WHERE event_id = ?
             """, (status, note, utc_now(), event_id))
             if cursor.rowcount == 0:
-                raise LookupError("???????")
+                raise LookupError("问答事件不存在")
 
     def dashboard_summary(self, course_id: str) -> dict:
         if self.use_mysql:

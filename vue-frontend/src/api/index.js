@@ -15,6 +15,7 @@ export const threadApi = {
 
 export const courseApi = {
   create: (payload) => request.post('/courses', payload),
+  join: (payload) => request.post('/courses/join', payload),
   list: () => request.get('/courses'),
   documents: (courseId) => request.get(`/courses/${courseId}/documents`),
   uploadDocument: (courseId, file) => {

@@ -159,6 +159,11 @@ class CourseMemberAddRequest(BaseModel):
     # 角色，只能二选一："teacher" / "student"；前端不传参数，默认值为 "student"
     role_in_course: Literal["teacher", "student"] = "student"
 
+
+class CourseJoinRequest(BaseModel):
+    """学生通过课程码加入课程的请求体模型"""
+    invite_code: str = Field(min_length=4, max_length=32)
+
 # 学习计划生成的请求体模型，前端POST请求传入参数
 class LearningPlanRequest(BaseModel):
     """生成学习计划的入参请求模型"""

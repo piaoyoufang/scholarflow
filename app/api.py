@@ -21,6 +21,7 @@ from app.schemas import (
     RegisterRequest,
     SessionResponse,
     CourseCreateRequest,
+    CourseJoinRequest,
     CourseMemberAddRequest,
 )
 # 导入全局认证权限存储单例（用户登录、线程归属校验）
@@ -445,6 +446,27 @@ def list_courses(session: tuple[str, str] = Depends(current_session)):
     result = {"courses": course_store.list_user_courses(user_id)}
     set_json(cache_key, result)
     return result
+
+
+@app.post("/courses/join", tags=["课程管理"], summary="通过课程码加入课程")
+def join_course_by_invite_code(
+    request: CourseJoinRequest,
+    session: tuple[str, str] = Depends(current_session),
+):
+    user_id, _ = session
+    try:
+        course = course_store.join_course_by_invite_code(request.invite_code, user_id)
+        delete_prefix(f"user:{user_id}:courses")
+        delete_prefix(f"course:{course['course_id']}:")
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return {
+        "status": "ok",
+        "message": "加入课程成功",
+        "course": course,
+    }
+
+
 @app.get("/courses/{course_id}", tags=["课程管理"], summary="获取课程详情")
 def get_course(course_id: str, session: tuple[str, str] = Depends(current_session)):
     user_id, _ = session

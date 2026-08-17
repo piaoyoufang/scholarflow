@@ -26,12 +26,33 @@
       </el-form>
     </el-card>
 
+    <el-card v-else class="panel-card create-card">
+      <template #header>
+        <div class="card-header">
+          <span>加入课程</span>
+          <el-tag type="success" effect="plain">学生学习端</el-tag>
+        </div>
+      </template>
+      <el-form ref="joinFormRef" :model="joinForm" :rules="joinRules" label-position="top" class="join-form">
+        <el-form-item label="课程码" prop="invite_code">
+          <el-input
+            v-model="joinForm.invite_code"
+            placeholder="请输入老师提供的课程码，例如 AI8K2P6Q"
+            clearable
+            maxlength="32"
+            @keyup.enter="joinCourse"
+          />
+        </el-form-item>
+        <el-button type="primary" :loading="joining" :disabled="joining" @click="joinCourse">加入课程</el-button>
+      </el-form>
+    </el-card>
+
     <div class="toolbar">
       <h2>选择当前课程</h2>
       <el-button :loading="loading" @click="loadCourses">刷新课程</el-button>
     </div>
 
-    <el-empty v-if="!courses.length" class="course-empty" :description="auth.isTeacher ? '你还没有课程，可以先在上方创建课程。' : '你还没有加入任何课程，请联系任课老师添加你为课程成员。'" />
+    <el-empty v-if="!courses.length" class="course-empty" :description="auth.isTeacher ? '你还没有课程，可以先在上方创建课程。' : '你还没有加入任何课程，请输入老师提供的课程码加入。'" />
 
     <div v-else class="grid grid-3 course-grid">
       <el-card v-for="course in courses" :key="course.course_id" class="course-card" :class="{ active: course.course_id === auth.currentCourseId }" @click="selectCourse(course)">
@@ -40,6 +61,11 @@
           <el-tag :type="course.role_in_course === 'teacher' ? 'primary' : 'success'" effect="light" round>{{ roleLabel(course.role_in_course) }}</el-tag>
         </div>
         <p>{{ course.description || '暂无课程说明' }}</p>
+        <div v-if="course.role_in_course === 'teacher' && course.invite_code" class="invite-code" @click.stop>
+          <span>课程码</span>
+          <strong>{{ course.invite_code }}</strong>
+          <el-button size="small" text type="primary" @click="copyInviteCode(course.invite_code)">复制</el-button>
+        </div>
       </el-card>
     </div>
 
@@ -48,6 +74,15 @@
       <el-table :data="courses" stripe style="width:100%">
         <el-table-column prop="course_name" label="课程名称" min-width="180" />
         <el-table-column prop="description" label="课程说明" min-width="260" show-overflow-tooltip />
+        <el-table-column v-if="auth.isTeacher" label="课程码" width="170">
+          <template #default="{ row }">
+            <div v-if="row.role_in_course === 'teacher' && row.invite_code" class="table-code">
+              <span>{{ row.invite_code }}</span>
+              <el-button size="small" text type="primary" @click="copyInviteCode(row.invite_code)">复制</el-button>
+            </div>
+            <span v-else>-</span>
+          </template>
+        </el-table-column>
         <el-table-column prop="role_in_course" label="角色" width="120">
           <template #default="{ row }">
             <el-tag :type="row.role_in_course === 'teacher' ? 'primary' : 'success'" effect="light" round>
@@ -70,9 +105,12 @@ import { useAuthStore } from '../stores/auth'
 const auth = useAuthStore()
 const courses = ref([])
 const creating = ref(false)
+const joining = ref(false)
 const loading = ref(false)
 const courseFormRef = ref()
+const joinFormRef = ref()
 const form = reactive({ course_name: '', description: '' })
+const joinForm = reactive({ invite_code: '' })
 const rules = {
   course_name: [
     { required: true, message: '请输入课程名称', trigger: 'blur' },
@@ -80,6 +118,12 @@ const rules = {
   ],
   description: [
     { max: 300, message: '课程说明最多 300 个字符', trigger: 'blur' }
+  ]
+}
+const joinRules = {
+  invite_code: [
+    { required: true, message: '请输入课程码', trigger: 'blur' },
+    { pattern: /^[A-Za-z0-9]{4,32}$/, message: '课程码只能包含英文和数字', trigger: 'blur' }
   ]
 }
 
@@ -114,6 +158,34 @@ async function createCourse() {
   }
 }
 
+async function joinCourse() {
+  await joinFormRef.value?.validate()
+  joining.value = true
+  try {
+    const inviteCode = joinForm.invite_code.trim().toUpperCase()
+    const { data } = await courseApi.join({ invite_code: inviteCode })
+    const c = data.course || {}
+    auth.setCourse(c)
+    ElMessage.success(data.message || '加入课程成功')
+    joinForm.invite_code = ''
+    joinFormRef.value?.clearValidate()
+    await loadCourses()
+  } catch (e) {
+    ElMessage.error(errorMessage(e))
+  } finally {
+    joining.value = false
+  }
+}
+
+async function copyInviteCode(code) {
+  try {
+    await navigator.clipboard.writeText(code)
+    ElMessage.success('课程码已复制')
+  } catch {
+    ElMessage.info(`课程码：${code}`)
+  }
+}
+
 function selectCourse(course) {
   auth.setCourse(course)
   ElMessage.success(`当前课程：${course.course_name}`)
@@ -133,7 +205,7 @@ onMounted(loadCourses)
 .breadcrumb :deep(.el-breadcrumb__inner) { color: #cbd5e1; font-weight: 700; }
 .create-card { margin-bottom: 24px; }
 .card-header { display: flex; align-items: center; justify-content: space-between; font-weight: 900; color: #0f172a; }
-.course-form { display: grid; gap: 4px; }
+.course-form, .join-form { display: grid; gap: 4px; }
 .toolbar { color:#fff; }
 .toolbar h2 { margin: 0; font-size: 20px; font-weight: 900; }
 .course-empty { padding: 46px 0; border: 1px dashed rgba(147,197,253,.55); border-radius: 22px; background: rgba(239,246,255,.08); }
@@ -147,5 +219,10 @@ onMounted(loadCourses)
 .course-top { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
 .course-card h3 { margin:0 0 10px; color:#0f172a; font-size: 18px; font-weight: 900; }
 .course-card p { color:#64748b; line-height:1.75; min-height:52px; margin: 0; }
+.invite-code { margin-top: 18px; display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 14px; background: #eff6ff; border: 1px solid #bfdbfe; color: #1e40af; }
+.invite-code span { color: #64748b; font-size: 12px; font-weight: 800; }
+.invite-code strong { letter-spacing: .12em; font-size: 15px; }
+.table-code { display: flex; align-items: center; gap: 8px; }
+.table-code span { font-weight: 900; color: #1d4ed8; letter-spacing: .08em; }
 .table-card { margin-top: 22px; }
 </style>

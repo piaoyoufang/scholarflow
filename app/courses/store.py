@@ -99,16 +99,20 @@ class CourseStore:
             }
             if "invite_code" not in course_columns:
                 conn.execute("ALTER TABLE courses ADD COLUMN invite_code TEXT")
-                rows = conn.execute("SELECT course_id FROM courses").fetchall()
-                for row in rows:
-                    conn.execute(
-                        "UPDATE courses SET invite_code = ? WHERE course_id = ?",
-                        (self.generate_unique_invite_code(), row["course_id"]),
-                    )
+
+            # 兼容旧课程：字段存在但值为空时，也要自动补齐课程码
+            rows = conn.execute(
+                "SELECT course_id FROM courses WHERE invite_code IS NULL OR invite_code = ''"
+            ).fetchall()
+            for row in rows:
                 conn.execute(
-                    "CREATE UNIQUE INDEX IF NOT EXISTS idx_courses_invite_code "
-                    "ON courses(invite_code)"
+                    "UPDATE courses SET invite_code = ? WHERE course_id = ?",
+                    (self.generate_unique_invite_code(), row["course_id"]),
                 )
+            conn.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS idx_courses_invite_code "
+                "ON courses(invite_code)"
+            )
 
     def _ensure_mysql_invite_code(self) -> None:
         """兼容旧版 MySQL 课程表，补齐 invite_code 字段和历史课程码。"""

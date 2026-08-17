@@ -71,6 +71,7 @@ from app.agents.learning_plan import generate_learning_plan
 from app.schemas import QuizRequest
 # 导入出题业务函数，内部完成RAG检索+大模型结构化输出，返回QuizResponse对象
 from app.agents.quiz import generate_quiz
+from app.learning_history.store import learning_history_store
 # 从分析模块的qa_events文件导入全局单例对象 qa_event_store
 from app.analytics.qa_events import qa_event_store
 # 导入反馈存储单例对象，调用create_feedback / summary / recent_down_feedback等数据库方法
@@ -1002,13 +1003,77 @@ def learning_plan(
 
     # 调用业务逻辑函数generate_learning_plan生成学习计划
     # 内部逻辑：RAG检索本课程知识库 → 组装上下文 → LLM结构化输出LearningPlanResponse
-    return generate_learning_plan(
+    result = generate_learning_plan(
         course_id=course_id,                # 传递课程ID，让RAG检索只读取本课程文档，实现知识库隔离
         goal=request.goal,                  # 用户学习目标，来自请求体
         days=request.days,                  # 计划总天数，来自请求体
         difficulty=request.difficulty,      # 难度等级 beginner/intermediate/advanced，来自请求体
         daily_minutes=request.daily_minutes,# 每日学习分钟数，来自请求体
     )
+    result_dict = result.model_dump() if hasattr(result, "model_dump") else dict(result)
+    record_id = learning_history_store.save_plan(
+        user_id=user_id,
+        course_id=course_id,
+        goal=request.goal,
+        days=request.days,
+        difficulty=request.difficulty,
+        daily_minutes=request.daily_minutes,
+        result=result_dict,
+    )
+    return {**result_dict, "record_id": record_id}
+
+
+@app.get("/courses/{course_id}/agents/learning-plan/history", tags=["学习工具"], summary="获取学习计划历史")
+def list_learning_plan_history(
+    course_id: str,
+    session: tuple[str, str] = Depends(current_session),
+):
+    user_id, _ = session
+    try:
+        course_store.require_course_access(course_id, user_id)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    return {"items": learning_history_store.list_plans(user_id, course_id)}
+
+
+@app.get("/courses/{course_id}/agents/learning-plan/history/{record_id}", tags=["学习工具"], summary="获取学习计划历史详情")
+def get_learning_plan_history(
+    course_id: str,
+    record_id: str,
+    session: tuple[str, str] = Depends(current_session),
+):
+    user_id, _ = session
+    try:
+        course_store.require_course_access(course_id, user_id)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    record = learning_history_store.get_plan(record_id, user_id, course_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="学习计划记录不存在")
+    return {"record": record}
+
+
+@app.delete("/courses/{course_id}/agents/learning-plan/history/{record_id}", tags=["学习工具"], summary="删除学习计划历史")
+def delete_learning_plan_history(
+    course_id: str,
+    record_id: str,
+    session: tuple[str, str] = Depends(current_session),
+):
+    user_id, _ = session
+    try:
+        course_store.require_course_access(course_id, user_id)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    deleted = learning_history_store.delete_plan(record_id, user_id, course_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="学习计划记录不存在")
+    return {"deleted": True}
 
 # FastAPI POST接口路由：为指定课程生成测验题目
 @app.post("/courses/{course_id}/agents/quiz", tags=["学习工具"], summary="生成测验题")
@@ -1036,13 +1101,77 @@ def quiz(
 
     # 调用业务函数generate_quiz生成测验，传入全部参数
     # 内部逻辑：search检索课程知识库 → 拼接上下文 → LLM结构化输出QuizResponse
-    return generate_quiz(
+    result = generate_quiz(
         course_id=course_id,                # 传递课程ID，用于RAG知识库隔离
         topic=request.topic,                # 出题主题，取自前端请求体
         question_count=request.question_count, # 题目数量，取自前端请求体
         question_type=request.question_type,   # 题型，取自前端请求体
         difficulty=request.difficulty,          # 难度，取自前端请求体
     )
+    result_dict = result.model_dump() if hasattr(result, "model_dump") else dict(result)
+    record_id = learning_history_store.save_quiz(
+        user_id=user_id,
+        course_id=course_id,
+        topic=request.topic,
+        question_count=request.question_count,
+        question_type=request.question_type,
+        difficulty=request.difficulty,
+        result=result_dict,
+    )
+    return {**result_dict, "record_id": record_id}
+
+
+@app.get("/courses/{course_id}/agents/quiz/history", tags=["学习工具"], summary="获取自动出题历史")
+def list_quiz_history(
+    course_id: str,
+    session: tuple[str, str] = Depends(current_session),
+):
+    user_id, _ = session
+    try:
+        course_store.require_course_access(course_id, user_id)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    return {"items": learning_history_store.list_quizzes(user_id, course_id)}
+
+
+@app.get("/courses/{course_id}/agents/quiz/history/{record_id}", tags=["学习工具"], summary="获取自动出题历史详情")
+def get_quiz_history(
+    course_id: str,
+    record_id: str,
+    session: tuple[str, str] = Depends(current_session),
+):
+    user_id, _ = session
+    try:
+        course_store.require_course_access(course_id, user_id)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    record = learning_history_store.get_quiz(record_id, user_id, course_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="题单记录不存在")
+    return {"record": record}
+
+
+@app.delete("/courses/{course_id}/agents/quiz/history/{record_id}", tags=["学习工具"], summary="删除自动出题历史")
+def delete_quiz_history(
+    course_id: str,
+    record_id: str,
+    session: tuple[str, str] = Depends(current_session),
+):
+    user_id, _ = session
+    try:
+        course_store.require_course_access(course_id, user_id)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    deleted = learning_history_store.delete_quiz(record_id, user_id, course_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="题单记录不存在")
+    return {"deleted": True}
 
 
 # 登录会话创建接口，POST无鉴权，生成全新用户登录凭证，返回标准化会话结构体

@@ -29,6 +29,26 @@
       </el-form>
     </el-card>
 
+    <el-card v-if="auth.hasCourse" class="panel-card history-card">
+      <template #header>
+        <div class="history-header">
+          <span>历史学习计划</span>
+          <el-button text type="primary" @click="loadHistory">刷新</el-button>
+        </div>
+      </template>
+      <el-empty v-if="!history.length" description="暂未生成学习计划" :image-size="72" />
+      <div v-else class="history-list">
+        <div v-for="record in history" :key="record.record_id" class="history-item" :class="{ active: record.record_id === activeRecordId }">
+          <button class="history-main" @click="openHistory(record.record_id)">
+            <b>{{ record.goal }}</b>
+            <span>{{ record.days }} 天 · {{ difficultyText(record.difficulty) }} · {{ record.daily_minutes }} 分钟/天</span>
+            <small>{{ formatTime(record.created_at) }}</small>
+          </button>
+          <el-button text type="danger" @click="removeHistory(record.record_id)">删除</el-button>
+        </div>
+      </div>
+    </el-card>
+
     <section v-if="days.length" class="result-section">
       <div class="result-header">
         <div>
@@ -59,8 +79,8 @@
 </template>
 
 <script setup>
-import { reactive, ref } from 'vue'
-import { ElMessage } from 'element-plus'
+import { onMounted, reactive, ref, watch } from 'vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { courseApi } from '../api'
 import { errorMessage } from '../api/request'
 import { useAuthStore } from '../stores/auth'
@@ -68,6 +88,8 @@ import { useAuthStore } from '../stores/auth'
 const auth = useAuthStore()
 const loading = ref(false)
 const days = ref([])
+const history = ref([])
+const activeRecordId = ref('')
 const form = reactive({ goal: '', days: 7, daily_minutes: 60, difficulty: 'beginner' })
 const difficultyOptions = [
   { label: '入门', value: 'beginner' },
@@ -81,6 +103,8 @@ async function generate() {
   try {
     const { data } = await courseApi.learningPlan(auth.currentCourseId, { ...form, goal: form.goal.trim() })
     days.value = data.days || []
+    activeRecordId.value = data.record_id || ''
+    await loadHistory()
     ElMessage.success('学习计划生成成功')
   } catch (e) {
     ElMessage.error(errorMessage(e))
@@ -88,10 +112,73 @@ async function generate() {
     loading.value = false
   }
 }
+
+function difficultyText(value) {
+  return difficultyOptions.find((item) => item.value === value)?.label || value
+}
+
+function formatTime(value) {
+  return value ? new Date(value).toLocaleString('zh-CN', { hour12: false }) : ''
+}
+
+async function loadHistory() {
+  if (!auth.currentCourseId) return
+  try {
+    const { data } = await courseApi.learningPlanHistory(auth.currentCourseId)
+    history.value = data.items || []
+  } catch (e) {
+    ElMessage.error(errorMessage(e))
+  }
+}
+
+async function openHistory(recordId) {
+  try {
+    const { data } = await courseApi.learningPlanHistoryDetail(auth.currentCourseId, recordId)
+    const record = data.record
+    form.goal = record.goal
+    form.days = record.days
+    form.difficulty = record.difficulty
+    form.daily_minutes = record.daily_minutes
+    days.value = record.result?.days || []
+    activeRecordId.value = record.record_id
+  } catch (e) {
+    ElMessage.error(errorMessage(e))
+  }
+}
+
+async function removeHistory(recordId) {
+  try {
+    await ElMessageBox.confirm('删除后无法恢复该学习计划，确定继续吗？', '删除学习计划', { type: 'warning' })
+    await courseApi.removeLearningPlanHistory(auth.currentCourseId, recordId)
+    if (activeRecordId.value === recordId) {
+      activeRecordId.value = ''
+      days.value = []
+    }
+    await loadHistory()
+    ElMessage.success('学习计划已删除')
+  } catch (e) {
+    if (e !== 'cancel' && e !== 'close') ElMessage.error(errorMessage(e))
+  }
+}
+
+watch(() => auth.currentCourseId, () => {
+  days.value = []
+  activeRecordId.value = ''
+  loadHistory()
+})
+onMounted(loadHistory)
 </script>
 
 <style scoped>
 .plan-form-card { margin-bottom: 22px; }
+.history-card { margin-bottom: 22px; }
+.history-header { display: flex; align-items: center; justify-content: space-between; font-weight: 900; color: #0f172a; }
+.history-list { display: grid; gap: 10px; }
+.history-item { display: flex; gap: 12px; align-items: center; padding: 10px 12px; border: 1px solid rgba(148,163,184,.22); border-radius: 14px; }
+.history-item.active { border-color: #3b82f6; background: rgba(37,99,235,.08); }
+.history-main { flex: 1; display: grid; gap: 4px; border: 0; padding: 0; background: transparent; text-align: left; cursor: pointer; }
+.history-main b { color: #0f172a; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.history-main span, .history-main small { color: #64748b; font-size: 12px; }
 .result-section { margin-top: 20px; }
 .result-header { display: flex; justify-content: space-between; gap: 16px; align-items: flex-end; margin-bottom: 16px; color: #fff; }
 .result-header h2 { margin: 0 0 6px; font-size: 22px; font-weight: 900; }

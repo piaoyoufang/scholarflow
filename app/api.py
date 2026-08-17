@@ -968,6 +968,18 @@ def low_quality_questions(course_id: str, session: tuple[str, str] = Depends(cur
     result = {"items": qa_event_store.low_quality_questions(course_id)}
     set_json(cache_key, result)
     return result
+
+
+@app.get("/courses/{course_id}/analytics/down-feedback", tags=["分析看板"], summary="获取负反馈问题")
+def down_feedback_questions(course_id: str, session: tuple[str, str] = Depends(current_session)):
+    user_id, _ = session
+    try:
+        course_store.require_course_teacher(course_id, user_id)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    return {"items": feedback_store.recent_down_feedback(course_id)}
 @app.post("/courses/{course_id}/retrieval/debug", tags=["检索调试"], summary="检索调试")
 def retrieval_debug(
     course_id: str,                          # 路径参数：目标课程ID

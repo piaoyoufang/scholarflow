@@ -44,5 +44,6 @@ export const courseApi = {
   topQuestions: (courseId) => request.get(`/courses/${courseId}/analytics/top-questions`),
   noCitation: (courseId) => request.get(`/courses/${courseId}/analytics/no-citation`),
   lowQuality: (courseId) => request.get(`/courses/${courseId}/analytics/low-quality`),
+  downFeedback: (courseId) => request.get(`/courses/${courseId}/analytics/down-feedback`),
   updateQaEventStatus: (courseId, eventId, payload) => request.patch(`/courses/${courseId}/qa-events/${eventId}/status`, payload)
 }

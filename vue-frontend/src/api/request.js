@@ -21,13 +21,27 @@ request.interceptors.request.use((config) => {
 
 request.interceptors.response.use(
   (response) => response,
-  (error) => {
+  // 拦截器改 async：刷新是异步操作，await 之后才能决定重放还是登出
+  async (error) => {
     const auth = useAuthStore()
     const status = error?.response?.status
-    if (status === 401) {
-      auth.clearAuth()
-      ElMessage.error('登录已过期，请重新登录')
-      router.push('/login')
+    const config = error?.config
+    // 三个条件同时满足才尝试「刷新 + 重放」：
+    // 1) 是 401
+    // 2) 本请求没重试过（_retried 防死循环：新 token 也 401 说明是权限问题，不是过期问题）
+    // 3) 不是 /auth 下的接口（登录失败、刷新失败本身的 401 不该再触发刷新）
+    if (status === 401 && config && !config._retried && !config.url.includes('/auth/')) {
+      config._retried = true
+      try {
+        await auth.refresh()                                  // 静默续期；并发请求在此复用同一个刷新 Promise
+        config.headers.Authorization = `Bearer ${auth.accessToken}`
+        return request(config)                                // 用新 token 重放原请求，用户对过期无感知
+      } catch {
+        // refresh 也失效（30 天没活跃 / 被吊销）：彻底登出
+        auth.clearAuth()
+        ElMessage.error('登录已过期，请重新登录')
+        router.push('/login')
+      }
     }
     return Promise.reject(error)
   }

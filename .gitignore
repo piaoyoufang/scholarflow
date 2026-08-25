@@ -23,6 +23,10 @@ data/**/*.sqlite3
 logs/
 backups/
 reports/*.csv
+reports/*.json
+
+# 本地开发覆盖（镜像版本绕过等机器特定配置）
+docker-compose.override.yml
 
 # Node / Vue frontend
 node_modules/

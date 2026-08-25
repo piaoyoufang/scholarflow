@@ -24,6 +24,14 @@
 - [x] 失败题已经人工检查且没有安全或数据隔离问题（本次 `scripts.analyze_reports` 显示失败题：无）
 - [x] 报告中没有API Key、Token、密码或用户问题正文泄漏
 
+### 回归评估门禁（v1.1.0 起生效，替代手工勾选）
+
+每次发布前执行：
+
+1. `python -m scripts.evaluate_run` 生成带参数快照的 JSON 报告（`reports/eval_run_*.json`）
+2. `python -m scripts.evaluate_compare 上一稳定版报告 本次报告`，确认快照一致且四项指标（source_hit_rate / avg_keyword_recall / avg_faithfulness / refusal_accuracy）无下降
+3. 指标下降时必须逐题下钻定位原因，修复或回滚后才允许发布
+
 ## 容器功能验收
 
 - [x] `/health/live` 返回200

@@ -62,6 +62,8 @@ from fastapi import BackgroundTasks
 from app.tasks.store import task_store
 # 导入文档处理异步任务函数，真正执行文档解析、切块、向量入库逻辑
 from app.tasks.ingestion import run_ingestion_task
+# 导入 arq 队列连接池单例：upload-async 把 ingestion 任务投递到 Redis，由独立 worker 进程执行
+from app.tasks.queue import get_queue
 # 导入调试检索工具函数，输出RAG召回的完整中间结果，用于排查检索效果
 from app.retrieval.debug import debug_retrieval
 # 导入Pydantic请求模型：接收前端提交生成学习计划的请求参数(goal、days、difficulty、daily_minutes)
@@ -634,7 +636,6 @@ def reingest_course_document(
 @app.post("/courses/{course_id}/documents/upload-async", tags=["文档管理"], summary="异步上传课程文档")
 async def upload_course_document_async(
     course_id: str,
-    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     session: tuple[str, str] = Depends(current_session),
 ):
@@ -694,8 +695,11 @@ async def upload_course_document_async(
 
     delete_prefix(f"course:{course_id}:")
     delete_prefix(f"course:{course_id}:")
-    background_tasks.add_task(
-        run_ingestion_task,
+    # 不再用进程内 BackgroundTasks，改为投递到 Redis 队列，由独立 worker 进程执行
+    # 接口契约不变：前端照常轮询 /tasks/{task_id}，前端代码零改动
+    queue = await get_queue()
+    await queue.enqueue_job(
+        "ingestion_job",          # 对应 app/tasks/worker.py 里的函数名
         task_id,
         document.source_id,
         str(target),

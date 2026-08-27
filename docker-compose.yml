@@ -75,6 +75,25 @@ services:
       retries: 3
       start_period: 30s
 
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        PYTHON_BASE_IMAGE: ${PYTHON_BASE_IMAGE:-docker.1ms.run/library/python:3.11-slim}
+    env_file:
+      - .env.production
+    # 与 api 同镜像，只换启动命令：arq 按模块路径加载 WorkerSettings
+    command: ["python", "-m", "arq", "app.tasks.worker.WorkerSettings"]
+    volumes:
+      - ./data:/app/data          # 必须挂载：worker 要读上传文件、写向量库
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
   web:
     build:
       context: .

@@ -143,7 +143,9 @@ xxhash==3.8.1
 yarl==1.24.5
 zstandard==0.25.0
 PyMySQL==1.2.0
-redis==8.1.0
+redis==5.3.1
+hiredis==3.4.1
+arq==0.28.0
 qdrant-client==1.19.0
 portalocker==3.2.0
 h2==4.4.1

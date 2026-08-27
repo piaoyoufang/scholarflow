@@ -22,3 +22,4 @@ pymysql>=1.1.1
 sqlalchemy>=2.0.30
 redis>=5.0.0
 qdrant-client>=1.10.0
+arq>=0.28

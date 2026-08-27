@@ -28,6 +28,9 @@ reports/*.json
 # 本地开发覆盖（镜像版本绕过等机器特定配置）
 docker-compose.override.yml
 
+# 个人升级手册，不入库
+docs/upgrade-guide.md
+
 # Node / Vue frontend
 node_modules/
 **/node_modules/

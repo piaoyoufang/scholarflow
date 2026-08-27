@@ -1,17 +1,18 @@
 import logging
 import re
+from json import dumps as json_dumps
 from pathlib import Path
 from time import perf_counter
 from uuid import uuid4
 # 导入FastAPI依赖注入、框架核心、异常、HTTP状态码工具
 from fastapi import Depends, FastAPI, File, HTTPException, Request, UploadFile, status
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 # 导入Bearer鉴权工具，用于解析请求头中的Authorization令牌
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from starlette.concurrency import run_in_threadpool
 
-# 导入持久化会话存储、带记忆的Agent流程图实例
-from app.graph.builder import memory_store, memory_workflow
+# 导入持久化会话存储、带记忆的Agent流程图实例、流式接口专用的异步记忆图工厂
+from app.graph.builder import get_async_memory_workflow, memory_store, memory_workflow
 # 导入请求校验模型、登录会话返回结构化模型
 from app.schemas import (
     AccountSessionResponse,
@@ -843,6 +844,133 @@ def ask_course(
     # 不直接 return result，是因为 result 里面可能包含 LangChain Document、Pydantic 对象等复杂类型，
     # 对前端没有必要，也更容易触发 JSON 序列化问题。
     return answer_payload
+
+# 流式问答接口：与 ask_course 同一业务逻辑，只把返回形式改成 SSE 事件流。
+# 注意：answer_node 用 with_structured_output(ResearchAnswer)，结构化输出不支持逐 token 流式，
+# 所以这里做的是「节点级流式」——推送各节点进度事件，答案在 answer_agent 完成后一次性下发。
+@app.post("/courses/{course_id}/ask/stream", tags=["问答"], summary="课程内问答（流式）")
+async def ask_course_stream(
+    course_id: str,
+    request: AskRequest,
+    session: tuple[str, str] = Depends(current_session),
+):
+    """
+    课程知识库问答接口（SSE 流式版）
+    事件类型：status=节点进度 / answer=完整答案与引用 / error=中途出错 / done=正常结束
+    """
+    user_id, _ = session
+
+    # 权限与线程归属校验：与 ask_course 完全相同（流式也要在响应头发出前拦截越权请求）
+    try:
+        course_store.require_course_access(course_id, user_id)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    try:
+        auth_store.claim_thread(user_id, request.thread_id)
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+
+    # LangGraph 节点名 -> 前端进度文案；astream_events 事件里的 name 就是 add_node 的第一个参数
+    PROGRESS_TEXT = {
+        "rewrite_question": "正在理解问题",
+        "supervisor": "正在判断问题类型",
+        "knowledge_agent": "正在检索课程资料",
+        "report_agent": "正在查询评估报表",
+        "diagnosis_agent": "正在分析学习情况",
+        "answer_agent": "正在生成回答",
+    }
+
+    def sse(event: str, data: dict) -> str:
+        """一帧 SSE 报文：event 行 + data 行，两个换行结束一帧（SSE 协议格式）"""
+        return f"event: {event}\ndata: {json_dumps(data, ensure_ascii=False)}\n\n"
+
+    async def event_stream():
+        """SSE 事件流生成器：每 yield 一个字符串就是一帧，前端逐帧消费"""
+        answer_payload = None
+        try:
+            # 异步记忆图：SqliteSaver 不支持 async，流式必须用挂 AsyncSqliteSaver 的图实例
+            stream_workflow = await get_async_memory_workflow()
+            # astream_events 是 LangGraph 的事件流 API：图执行中每个节点的开始/结束都产出事件，
+            # version="v2" 是当前稳定事件协议
+            async for ev in stream_workflow.astream_events(
+                {"question": request.question, "course_id": course_id},
+                config={"configurable": {"thread_id": request.thread_id}},
+                version="v2",
+            ):
+                # 只关心业务节点事件；图整体（LangGraph）和内部 Runnable 的事件过滤掉
+                name = ev.get("name", "")
+                if name not in PROGRESS_TEXT:
+                    continue
+                if ev["event"] == "on_chain_start":
+                    yield sse("status", {"node": name, "msg": PROGRESS_TEXT[name]})
+                elif ev["event"] == "on_chain_end" and name == "answer_agent":
+                    # answer_agent 结束：答案生成完毕，一次性下发完整结构化答案
+                    # output 是节点返回的状态更新字典，answer 是 ResearchAnswer 对象
+                    output = ev["data"].get("output") or {}
+                    answer_obj = output.get("answer")
+                    if hasattr(answer_obj, "model_dump"):
+                        answer_payload = answer_obj.model_dump()
+                    elif isinstance(answer_obj, dict):
+                        answer_payload = answer_obj
+                    else:
+                        answer_payload = {
+                            "answer": str(answer_obj or ""),
+                            "citations": [],
+                            "confidence": 0,
+                            "missing_information": [],
+                        }
+                    yield sse("answer", answer_payload)
+        except Exception as exc:
+            # 流式中途出错不能用 HTTP 状态码（响应头早已发出），只能用 error 事件通知前端
+            # CancelledError（前端主动断开）不是 Exception 子类，会直接向上传播中断图执行，这正是取消语义
+            yield sse("error", {"msg": str(exc)})
+            return
+
+        # 答案成功产出后补齐 ask_course 的副作用：写问答埋点、更新会话标题，保持两个接口行为一致
+        if answer_payload:
+            answer_text = str(answer_payload.get("answer", ""))
+            citations = answer_payload.get("citations", []) or []
+            qa_event_store.record_event(
+                course_id=course_id,
+                user_id=user_id,
+                thread_id=request.thread_id,
+                question=request.question,
+                answer=answer_text,
+                citation_count=len(citations),
+            )
+            try:
+                auth_store.update_thread_title(user_id, request.thread_id, request.question)
+            except (LookupError, PermissionError):
+                logger.exception(
+                    "course.ask.thread_title_update_failed",
+                    extra={
+                        "event": "course.ask.thread_title_update_failed",
+                        "details": {"user_id": user_id, "thread_id": request.thread_id},
+                    },
+                )
+            logger.info(
+                "course.ask.completed",
+                extra={
+                    "event": "course.ask.completed",
+                    "details": {
+                        "course_id": course_id,
+                        "user_id": user_id,
+                        "thread_id": request.thread_id,
+                        "citation_count": len(citations),
+                        "stream": True,
+                    },
+                },
+            )
+        yield sse("done", {})
+
+    # text/event-stream 声明 SSE 协议；no-cache 与 X-Accel-Buffering 防止反向代理缓冲事件流
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 # PATCH接口：局部更新问答事件处理状态，路径携带课程id和事件id
 @app.patch("/courses/{course_id}/qa-events/{event_id}/status", tags=["问答"], summary="更新问答事件处理状态")

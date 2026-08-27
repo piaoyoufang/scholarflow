@@ -2,11 +2,15 @@
 import atexit
 # SQLite 数据库原生操作库，用于本地文件型数据库连接
 import sqlite3
+# aiosqlite：sqlite3 的 asyncio 封装，AsyncSqliteSaver 的连接对象由它创建
+import aiosqlite
 # 路径工具类，用于拼接、读取本地文件路径
 from pathlib import Path
 
 # LangGraph SQLite持久化存储：将会话记忆落地到sqlite文件，替代内存临时存储
 from langgraph.checkpoint.sqlite import SqliteSaver
+# 异步版SQLite持久化存储：SqliteSaver 不支持 async 调用（astream_events 需要），流式接口专用
+from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 # LangGraph序列化工具：支持复杂对象（Pydantic模型、自定义结构体）转JSON存入数据库
 from langgraph.checkpoint.serde.jsonplus import JsonPlusSerializer
 
@@ -133,3 +137,21 @@ memory_store = SqliteSaver(
 )
 # 构建带SQLite持久会话记忆的完整Agent流程图，所有对话状态会落地保存到sqlite文件
 memory_workflow = build_graph(checkpointer=memory_store)
+
+# 流式接口专用的异步记忆图：与 memory_workflow 共享同一个 checkpoint 文件和序列化器，
+# 所以流式/非流式接口读写的是同一份会话记忆；区别只是 checkpointer 换成支持 async 的 AsyncSqliteSaver。
+# 必须懒初始化：AsyncSqliteSaver 构造时绑定当前事件循环（asyncio.get_running_loop），
+# 模块导入时尚无运行中的循环，只能推迟到第一次有请求到来时再建。
+_async_memory_workflow = None
+
+
+async def get_async_memory_workflow():
+    """获取（首次调用时创建）挂 AsyncSqliteSaver 的流程图实例，供 SSE 流式接口使用"""
+    global _async_memory_workflow
+    if _async_memory_workflow is None:
+        # aiosqlite 连接建立在当前事件循环上；表结构由 SqliteSaver 首次使用时已建好，
+        # AsyncSqliteSaver 内部的 setup() 也是 CREATE TABLE IF NOT EXISTS，幂等可重入
+        conn = await aiosqlite.connect(str(checkpoint_path))
+        saver = AsyncSqliteSaver(conn, serde=checkpoint_serde)
+        _async_memory_workflow = build_graph(checkpointer=saver)
+    return _async_memory_workflow

@@ -70,7 +70,32 @@ jobs:
         # 读取VERSION文件拼接v前缀，和Git标签名称对比，不一致则流水线失败
         run: test "v$(cat VERSION)" = "${GITHUB_REF_NAME}"
 
-  # 任务2：容器镜像构建校验，依赖离线门禁任务全部通过才会执行
+  # 任务2：前端工程化门禁（lint + 单测 + 构建），与离线门禁并行执行
+  frontend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: vue-frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: vue-frontend
+
+      # lint 管代码质量、vitest 跑关键路径单测、build 验证产物可构建——任一失败则流水线失败
+      - name: Lint, test and build
+        run: npm run lint && npm test && npm run build
+        working-directory: vue-frontend
+
+  # 任务3：容器镜像构建校验，依赖离线门禁任务全部通过才会执行
   docker-build:
     # 依赖前置离线校验任务成功
     needs: offline-gate

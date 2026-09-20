@@ -24,5 +24,9 @@ export default defineConfig({
         rewrite: (path) => path.replace(/^\/api/, '')
       }
     }
+  },
+  // Vitest 配置：happy-dom 提供 localStorage 等浏览器 API（auth store 测试依赖它）
+  test: {
+    environment: 'happy-dom'
   }
 })

@@ -34,8 +34,8 @@
         <el-button class="mobile-menu-btn" type="primary" plain @click="mobileMenuVisible = true">菜单</el-button>
         <div class="topbar-title-block">
           <div class="top-title">{{ $route.meta.title || '高校课程AI学习助手平台项目' }}</div>
-          <div class="course-line" v-if="auth.currentCourseId">当前课程：{{ auth.currentCourseName }} ｜ 课程角色：{{ roleLabel(auth.currentCourseRole) }}</div>
-          <div class="course-line" v-else>{{ auth.isTeacher ? '请先进入“我的课程”创建或选择课程' : '请先进入“我的课程”选择已加入的课程' }}</div>
+          <div v-if="auth.currentCourseId" class="course-line">当前课程：{{ auth.currentCourseName }} ｜ 课程角色：{{ roleLabel(auth.currentCourseRole) }}</div>
+          <div v-else class="course-line">{{ auth.isTeacher ? '请先进入“我的课程”创建或选择课程' : '请先进入“我的课程”选择已加入的课程' }}</div>
         </div>
       </el-header>
       <el-main class="main"><router-view /></el-main>

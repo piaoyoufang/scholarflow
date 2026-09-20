@@ -1,4 +1,6 @@
 ﻿<template>
+  <!-- v-html 渲染的是 markdown-it 输出（html: false 已禁用原生 HTML 注入），XSS 风险已由解析器侧控制 -->
+  <!-- eslint-disable-next-line vue/no-v-html -->
   <div class="markdown-body" v-html="html"></div>
 </template>
 

@@ -85,7 +85,7 @@
       </el-card>
     </div>
 
-    <el-card class="panel-card table-card" v-if="courses.length">
+    <el-card v-if="courses.length" class="panel-card table-card">
       <template #header><div class="card-header"><span>课程明细</span><el-tag effect="plain">{{ courses.length }} 门课程</el-tag></div></template>
       <el-table :data="courses" stripe style="width:100%">
         <el-table-column prop="course_name" label="课程名称" min-width="180" />

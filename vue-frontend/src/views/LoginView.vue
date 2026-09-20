@@ -101,7 +101,9 @@ async function restoreLatestThread() {
       auth.setThread(detail.data.thread_id, detail.data.history || [])
       return
     }
-  } catch {}
+  } catch {
+    // 拉取历史会话失败不阻塞登录流程，落到下面新建空会话
+  }
   auth.setThread(v4Like(), [])
 }
 

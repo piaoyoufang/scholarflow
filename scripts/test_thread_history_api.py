@@ -5,7 +5,8 @@ from uuid import uuid4
 
 from fastapi.testclient import TestClient
 
-import app.api as api_module
+import app.routers.ask as ask_module
+import app.routers.threads as threads_module
 from app.api import app
 from app.schemas import ResearchAnswer
 
@@ -43,8 +44,13 @@ class FakeMemoryWorkflow:
 
 
 def main() -> None:
-    original_memory_workflow = api_module.memory_workflow
-    api_module.memory_workflow = FakeMemoryWorkflow()
+    # /ask 与 /threads 分别引用 ask、threads 两个路由模块的模块级 memory_workflow，
+    # 必须同时替换为同一个 Fake 实例，写入和读取才能看到同一份状态
+    fake_workflow = FakeMemoryWorkflow()
+    original_ask_workflow = ask_module.memory_workflow
+    original_threads_workflow = threads_module.memory_workflow
+    ask_module.memory_workflow = fake_workflow
+    threads_module.memory_workflow = fake_workflow
 
     try:
         client = TestClient(app)
@@ -89,7 +95,8 @@ def main() -> None:
         assert detail["history"][0]["role"] == "user"
         assert detail["history"][1]["role"] == "assistant"
     finally:
-        api_module.memory_workflow = original_memory_workflow
+        ask_module.memory_workflow = original_ask_workflow
+        threads_module.memory_workflow = original_threads_workflow
 
     print("线程列表接口：通过")
     print("线程历史恢复接口：通过")

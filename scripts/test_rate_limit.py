@@ -107,7 +107,7 @@ def test_ask_user_rate_limit_without_qwen() -> None:
 
         # 使用patch mock覆盖memory_workflow.invoke方法，固定返回假回答
         with patch(
-            "app.api.memory_workflow.invoke",
+            "app.routers.ask.memory_workflow.invoke",
             return_value=fake_result,
         ) as mocked_invoke:
             # 第一次提问，未达上限，正常放行

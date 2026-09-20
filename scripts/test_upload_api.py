@@ -4,8 +4,9 @@ from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 
-import app.api as api_module
-from app.api import app, current_session
+import app.routers.documents as documents_module
+from app.api import app
+from app.deps import current_session
 
 
 def main() -> None:
@@ -24,8 +25,8 @@ def main() -> None:
     try:
         with TemporaryDirectory() as directory:
             upload_dir = Path(directory)
-            with patch.object(api_module, "UPLOAD_DIR", upload_dir):
-                with patch.object(api_module, "ingest", return_value=2):
+            with patch.object(documents_module, "UPLOAD_DIR", upload_dir):
+                with patch.object(documents_module, "ingest", return_value=2):
                     success = client.post(
                         "/documents/upload",
                         files={
@@ -70,7 +71,7 @@ def main() -> None:
                 )
                 assert too_large.status_code == 413, too_large.text
 
-                assert api_module.safe_upload_name("../../CON.txt") == "uploaded_CON.txt"
+                assert documents_module.safe_upload_name("../../CON.txt") == "uploaded_CON.txt"
     finally:
         app.dependency_overrides.clear()
 

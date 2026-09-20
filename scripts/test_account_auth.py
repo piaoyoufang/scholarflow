@@ -18,8 +18,14 @@ warnings.filterwarnings("ignore", category=StarletteDeprecationWarning)
 # FastAPI内置测试客户端，模拟HTTP请求调用后端所有接口，无需启动真实服务
 from fastapi.testclient import TestClient
 
-# 导入后端api总入口模块，用于替换全局依赖、加载app实例
-from app import api as api_module
+# 导入后端api总入口模块，加载app实例
+from app.api import app
+# 路由拆分后，auth_store / memory_workflow 被 deps 与各 router 按名引用，
+# 替换全局依赖需覆盖每一处模块级引用
+import app.deps as deps_module
+import app.routers.ask as ask_module
+import app.routers.auth as auth_router_module
+import app.routers.threads as threads_module
 # 导入完整账号认证存储类，包含注册、登录、双Token刷新、注销、线程权限逻辑
 from app.security import AuthStore
 
@@ -82,17 +88,22 @@ def main() -> None:
         # 实例化独立测试用认证存储，数据库存放于临时目录，隔离正式业务数据
         test_store = AuthStore(Path(directory) / "account-test.sqlite")
 
-        # 保存api模块原始全局对象，测试完成后必须恢复，避免污染真实业务逻辑
-        original_store = api_module.auth_store
-        original_workflow = api_module.memory_workflow
+        # 保存各模块原始全局对象，测试完成后必须恢复，避免污染真实业务逻辑
+        store_modules = [deps_module, auth_router_module, ask_module, threads_module]
+        original_stores = {m: m.auth_store for m in store_modules}
+        original_ask_workflow = ask_module.memory_workflow
+        original_threads_workflow = threads_module.memory_workflow
 
         try:
             # 全局依赖替换：将后端正式认证库、真实RAG工作流替换为测试专用实例
-            api_module.auth_store = test_store
-            api_module.memory_workflow = FakeWorkflow()
+            for m in store_modules:
+                m.auth_store = test_store
+            fake_workflow = FakeWorkflow()
+            ask_module.memory_workflow = fake_workflow
+            threads_module.memory_workflow = fake_workflow
 
             # 创建FastAPI测试客户端，加载项目app实例，模拟完整HTTP请求链路
-            with TestClient(api_module.app) as client:
+            with TestClient(app) as client:
                 # 生成随机唯一测试用户名，每次运行测试名称不同，规避重复注册冲突
                 username = f"student_{uuid4().hex[:8]}"
 
@@ -254,8 +265,10 @@ def main() -> None:
         finally:
             # 无论测试中途断言报错还是全部通过，都强制恢复后端原始全局对象
             # 防止测试覆盖正式环境的AuthStore与RAG工作流，避免业务代码异常
-            api_module.auth_store = original_store
-            api_module.memory_workflow = original_workflow
+            for m, original_store in original_stores.items():
+                m.auth_store = original_store
+            ask_module.memory_workflow = original_ask_workflow
+            threads_module.memory_workflow = original_threads_workflow
 
     # 全部10项用例无报错，打印总通过提示
     print("账号注册、登录、刷新、权限与注销测试：全部通过")

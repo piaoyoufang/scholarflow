@@ -9,8 +9,12 @@ from uuid import uuid4
 
 from fastapi.testclient import TestClient
 
-import app.api as api_module
-from app.api import app, current_session
+import app.routers.ask as ask_module
+from app.analytics.qa_events import qa_event_store
+from app.api import app
+from app.courses.store import course_store
+from app.deps import current_session
+from app.security import auth_store
 from app.schemas import Citation, ResearchAnswer
 
 
@@ -58,7 +62,7 @@ def main() -> None:
     # 2) 已登录但无课程权限：流式开始前返回 403
     app.dependency_overrides[current_session] = lambda: ("stream-test-user", "token")
     with patch.object(
-        api_module.course_store,
+        course_store,
         "require_course_access",
         side_effect=PermissionError("不是课程成员"),
     ):
@@ -75,11 +79,11 @@ def main() -> None:
         return FakeStreamWorkflow()
 
     with (
-        patch.object(api_module.course_store, "require_course_access", return_value=None),
-        patch.object(api_module.auth_store, "claim_thread", return_value=None),
-        patch.object(api_module.auth_store, "update_thread_title", return_value=None),
-        patch.object(api_module.qa_event_store, "record_event", record_event),
-        patch.object(api_module, "get_async_memory_workflow", fake_get_workflow),
+        patch.object(course_store, "require_course_access", return_value=None),
+        patch.object(auth_store, "claim_thread", return_value=None),
+        patch.object(auth_store, "update_thread_title", return_value=None),
+        patch.object(qa_event_store, "record_event", record_event),
+        patch.object(ask_module, "get_async_memory_workflow", fake_get_workflow),
     ):
         response = client.post(
             f"/courses/{course_id}/ask/stream",

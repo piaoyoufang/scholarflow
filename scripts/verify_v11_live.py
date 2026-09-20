@@ -5,9 +5,10 @@ import httpx
 from fastapi.testclient import TestClient
 from langchain_chroma import Chroma
 
-from app.api import UPLOAD_DIR, app
+from app.api import app
 from app.config import settings
 from app.models import embeddings
+from app.routers.documents import UPLOAD_DIR
 
 
 def main() -> None:

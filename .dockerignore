@@ -11,5 +11,11 @@ reports
 data/chroma
 data/memory
 data/auth
+data/qdrant_local
 .git
 .gitignore
+# nginx 多阶段构建前端时，不需要把 node_modules 拷进 build context
+vue-frontend/node_modules
+vue-frontend/dist
+# compose 临时文件
+docker-compose.override.yml

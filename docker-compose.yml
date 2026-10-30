@@ -1,6 +1,14 @@
+# ============================================================
+# Scholarflow 生产环境 Docker Compose
+# 唯一对外端口：nginx:80（Cloudflare HTTPS 自动处理）
+# 所有内部服务走 compose 内部网络，不暴露端口到宿主机
+# 服务器：腾讯云轻量应用服务器（东京），IP 43.130.247.249
+# ============================================================
+
 services:
+  # ---------- 中间件 ----------
   mysql:
-    image: docker.1ms.run/mysql:8.0
+    image: mysql:8.0
     container_name: scholarflow-mysql
     environment:
       MYSQL_ROOT_PASSWORD: scholarflow_root
@@ -8,8 +16,8 @@ services:
       MYSQL_USER: scholarflow
       MYSQL_PASSWORD: scholarflow_pwd
       TZ: Asia/Shanghai
-    ports:
-      - "3307:3306"
+    # 生产环境不对外暴露，内部服务通过容器名 mysql:3306 访问
+    # 需要本地临时连时取消注释：- "3307:3306"
     volumes:
       - mysql_data:/var/lib/mysql
     command:
@@ -23,10 +31,9 @@ services:
     restart: unless-stopped
 
   redis:
-    image: docker.1ms.run/library/redis:7-alpine
+    image: redis:7-alpine
     container_name: scholarflow-redis
-    ports:
-      - "6379:6379"
+    # 需要本地临时连时取消注释：ports: ["6379:6379"]
     volumes:
       - redis_data:/data
     command: ["redis-server", "--appendonly", "yes"]
@@ -37,12 +44,14 @@ services:
       retries: 10
     restart: unless-stopped
 
+  # ---------- 业务服务 ----------
   api:
     build:
       context: .
       dockerfile: Dockerfile
       args:
-        PYTHON_BASE_IMAGE: ${PYTHON_BASE_IMAGE:-docker.1ms.run/library/python:3.11-slim}
+        PYTHON_BASE_IMAGE: python:3.12-slim
+    container_name: scholarflow-api
     env_file:
       - .env.production
     command:
@@ -56,8 +65,12 @@ services:
       - "8000"
       - --workers
       - "1"
-    ports:
-      - "8000:8000"
+      # 信任 Nginx 传来的 X-Forwarded-For，这样后端 request.client.host
+      # 拿到的是用户真实 IP，而不是 Nginx 容器的内网地址。
+      # 之所以敢写 "*"：api 的 8000 端口没有映射到宿主机，
+      # 外部无法直连，只有 compose 网络内的 nginx 能访问它。
+      - --forwarded-allow-ips
+      - "*"
     volumes:
       - ./data:/app/data
       - ./logs:/app/logs
@@ -80,13 +93,13 @@ services:
       context: .
       dockerfile: Dockerfile
       args:
-        PYTHON_BASE_IMAGE: ${PYTHON_BASE_IMAGE:-docker.1ms.run/library/python:3.11-slim}
+        PYTHON_BASE_IMAGE: python:3.12-slim
+    container_name: scholarflow-worker
     env_file:
       - .env.production
-    # 与 api 同镜像，只换启动命令：arq 按模块路径加载 WorkerSettings
     command: ["python", "-m", "arq", "app.tasks.worker.WorkerSettings"]
     volumes:
-      - ./data:/app/data          # 必须挂载：worker 要读上传文件、写向量库
+      - ./data:/app/data
     depends_on:
       mysql:
         condition: service_healthy
@@ -94,27 +107,14 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
-  web:
+  # ---------- 反向代理 + 前端静态文件（唯一对外入口） ----------
+  nginx:
     build:
       context: .
-      dockerfile: Dockerfile
-      args:
-        PYTHON_BASE_IMAGE: ${PYTHON_BASE_IMAGE:-docker.1ms.run/library/python:3.11-slim}
-    env_file:
-      - .env.production
-    environment:
-      API_BASE_URL: http://api:8000
-    command:
-      - python
-      - -m
-      - streamlit
-      - run
-      - ui.py
-      - --server.address=0.0.0.0
-      - --server.port=8501
-      - --server.headless=true
+      dockerfile: nginx/Dockerfile
+    container_name: scholarflow-nginx
     ports:
-      - "8501:8501"
+      - "80:80"
     depends_on:
       api:
         condition: service_healthy

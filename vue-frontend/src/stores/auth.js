@@ -77,7 +77,8 @@ export const useAuthStore = defineStore('auth', {
       if (refreshPromise) return refreshPromise
       refreshPromise = (async () => {
         // 用原生 fetch 而不是 axios 实例：避免刷新请求自己也走进 response 拦截器造成递归
-        const resp = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000'}/auth/refresh`, {
+        // 默认 /api 同源前缀（开发走 vite proxy、生产走 nginx），与 request.js 保持一致
+        const resp = await fetch(`${import.meta.env.VITE_API_BASE_URL || '/api'}/auth/refresh`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ refresh_token: this.refreshToken })

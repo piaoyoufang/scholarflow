@@ -124,7 +124,32 @@ const displayMessages = computed(() => {
   }
   return normalized
 })
-function withCitations(result){ let txt=String(result.answer ?? JSON.stringify(result)); const cs=result.citations||[]; if(cs.length){ txt+='\n\n#### 引用来源\n'+cs.map(c=>`- ${c.source_name||c.source||'未知来源'} ${c.locator||''}: ${c.quote||c.content||''}`).join('\n') } return txt }
+// 引用展示前统一清洗：UUID、长十六进制串属于内部标识，不能出现在前端
+const UUID_RE = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi
+const HEX_ONLY_RE = /^(?:[0-9a-f]{12,}|[0-9a-f]+[-_][0-9a-f-_]+)$/i
+
+function cleanCiteText(value) {
+  return String(value ?? '')
+    .replace(UUID_RE, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function citeName(cite) {
+  const name = cleanCiteText(cite.source_name || cite.source)
+  return !name || HEX_ONLY_RE.test(name) ? '课程资料' : name
+}
+
+function citeLocator(cite) {
+  const locator = cleanCiteText(cite.locator)
+  return !locator || HEX_ONLY_RE.test(locator) ? '' : locator
+}
+
+function citeQuote(cite) {
+  return cleanCiteText(cite.quote || cite.content)
+}
+
+function withCitations(result){ let txt=String(result.answer ?? JSON.stringify(result)); const cs=result.citations||[]; if(cs.length){ txt+='\n\n#### 引用来源\n'+cs.map(c=>`- ${citeName(c)} ${citeLocator(c)}: ${citeQuote(c)}`).join('\n') } return txt }
 // 流式问答：进度步骤放在独立的「过程条」里（不进答案正文）；
 // 答案到达后用打字机效果逐段揭示——结构化输出只能整段返回，前端补一层逐字观感
 const abortCtrl = ref(null)

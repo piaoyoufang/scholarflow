@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <el-container class="app-layout">
     <el-aside width="268px" class="aside">
       <div class="brand">

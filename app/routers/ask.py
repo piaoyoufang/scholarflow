@@ -1,4 +1,4 @@
-﻿"""问答域路由：课程问答（含流式）、全局问答、问答反馈、问答事件处理——从 api.py 原样搬入"""
+"""问答域路由：课程问答（含流式）、全局问答、问答反馈、问答事件处理——从 api.py 原样搬入"""
 import asyncio
 from json import dumps as json_dumps
 from time import perf_counter

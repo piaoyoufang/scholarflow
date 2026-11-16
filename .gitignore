@@ -1,4 +1,4 @@
-﻿.venv/
+.venv/
 .env
 .env.production
 __pycache__/
@@ -51,3 +51,6 @@ ui_beautified_*.py
 .trae-html-share-packages/
 login-redesign-preview.png
 .uploads/
+
+# 本地虚拟环境
+.venv/

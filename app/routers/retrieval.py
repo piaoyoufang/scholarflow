@@ -1,4 +1,4 @@
-﻿"""检索调试域路由：查看 RAG 召回过程与命中片段——从 api.py 原样搬入"""
+"""检索调试域路由：查看 RAG 召回过程与命中片段——从 api.py 原样搬入"""
 from fastapi import APIRouter, Depends, HTTPException
 
 from app.courses.store import course_store

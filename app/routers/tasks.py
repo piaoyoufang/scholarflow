@@ -1,4 +1,4 @@
-﻿"""任务中心域路由：课程任务列表、任务详情——从 api.py 原样搬入"""
+"""任务中心域路由：课程任务列表、任务详情——从 api.py 原样搬入"""
 from fastapi import APIRouter, Depends, HTTPException
 
 from app.courses.store import course_store

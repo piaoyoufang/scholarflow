@@ -1,4 +1,4 @@
-﻿import { defineStore } from 'pinia'
+import { defineStore } from 'pinia'
 import { v4Like } from '../utils/id'
 
 const STORAGE_KEY = 'course_ai_auth_state'

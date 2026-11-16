@@ -1,4 +1,4 @@
-﻿"""学习工具域路由：学习计划生成/历史、自动出题/历史——从 api.py 原样搬入"""
+"""学习工具域路由：学习计划生成/历史、自动出题/历史——从 api.py 原样搬入"""
 from fastapi import APIRouter, Depends, HTTPException
 
 from app.agents.learning_plan import generate_learning_plan

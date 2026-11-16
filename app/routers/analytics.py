@@ -1,4 +1,4 @@
-﻿"""分析看板域路由：课程看板、高频/无引用/低质量/负反馈问题——从 api.py 原样搬入"""
+"""分析看板域路由：课程看板、高频/无引用/低质量/负反馈问题——从 api.py 原样搬入"""
 from fastapi import APIRouter, Depends, HTTPException
 
 from app.analytics.qa_events import qa_event_store

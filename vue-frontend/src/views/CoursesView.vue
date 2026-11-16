@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="courses-page">
     <el-breadcrumb separator="/" class="breadcrumb">
       <el-breadcrumb-item>高校课程AI学习助手平台</el-breadcrumb-item>

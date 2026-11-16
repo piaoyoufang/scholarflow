@@ -1,4 +1,4 @@
-﻿import request, { API_BASE_URL } from './request'
+import request, { API_BASE_URL } from './request'
 import { useAuthStore } from '../stores/auth'
 
 export const authApi = {

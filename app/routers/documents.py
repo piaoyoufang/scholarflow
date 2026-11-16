@@ -1,4 +1,4 @@
-﻿"""文档管理域路由：课程文档列表/删除/重新入库/异步上传、全局上传——从 api.py 原样搬入"""
+"""文档管理域路由：课程文档列表/删除/重新入库/异步上传、全局上传——从 api.py 原样搬入"""
 import re
 from pathlib import Path
 from uuid import uuid4

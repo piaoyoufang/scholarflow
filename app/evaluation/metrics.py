@@ -1,4 +1,4 @@
-﻿# 用于评估 AI 回答质量的自动化测试工具。它通过对比 AI 生成的答案与预设的“标准答案”，从引用来源准确性和关键词覆盖率两个维度进行打分，最后返回一个包含详细评估结果的对象。
+# 用于评估 AI 回答质量的自动化测试工具。它通过对比 AI 生成的答案与预设的“标准答案”，从引用来源准确性和关键词覆盖率两个维度进行打分，最后返回一个包含详细评估结果的对象。
 from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import PurePath

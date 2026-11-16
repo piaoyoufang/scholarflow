@@ -283,10 +283,10 @@ onMounted(loadUsers)
 <style scoped>
 .admin-page { max-width: 1180px; margin: 0 auto; }
 .breadcrumb { margin-bottom: 18px; }
-.breadcrumb :deep(.el-breadcrumb__inner) { color: var(--muted); font-weight: 500; font-size: 12px; }
+.breadcrumb :deep(.el-breadcrumb__inner) { color: rgba(255,255,255,.5); font-weight: 500; font-size: 12px; }
 .create-card { margin-bottom: 24px; }
-.card-header { display: flex; align-items: center; justify-content: space-between; font-weight: 600; color: var(--text); font-size: 14px; }
-.toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: var(--text); flex-wrap: wrap; }
+.card-header { display: flex; align-items: center; justify-content: space-between; font-weight: 600; color: #fff; font-size: 14px; }
+.toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: #fff; flex-wrap: wrap; }
 .toolbar h2 { margin: 0; font-size: 20px; font-weight: 900; }
 .toolbar-actions { display: flex; align-items: center; gap: 10px; }
 .user-cell { display: flex; align-items: center; gap: 8px; }

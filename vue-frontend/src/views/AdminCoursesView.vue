@@ -135,15 +135,15 @@ onMounted(loadCourses)
 <style scoped>
 .admin-page { max-width: 1180px; margin: 0 auto; }
 .breadcrumb { margin-bottom: 18px; }
-.breadcrumb :deep(.el-breadcrumb__inner) { color: var(--muted); font-weight: 500; font-size: 12px; }
-.toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: var(--text); flex-wrap: wrap; }
+.breadcrumb :deep(.el-breadcrumb__inner) { color: rgba(255,255,255,.5); font-weight: 500; font-size: 12px; }
+.toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: #fff; flex-wrap: wrap; }
 .toolbar-actions { display: flex; align-items: center; gap: 10px; }
 .summary { display: flex; align-items: baseline; gap: 8px; }
-.summary-num { font-size: 30px; font-weight: 900; color: var(--text); line-height: 1; }
-.summary-label { color: var(--muted); font-size: 13px; }
-.course-name { color: var(--text); font-weight: 600; }
-.course-desc { color: var(--muted); font-size: 12px; margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 340px; }
-.invite-code { color: var(--primary); letter-spacing: .08em; font-weight: 600; }
+.summary-num { font-size: 30px; font-weight: 900; color: #fff; line-height: 1; }
+.summary-label { color: rgba(255,255,255,.6); font-size: 13px; }
+.course-name { color: #fff; font-weight: 600; }
+.course-desc { color: rgba(255,255,255,.5); font-size: 12px; margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 340px; }
+.invite-code { color: #f0abfc; letter-spacing: .08em; font-weight: 600; }
 .table-card { margin-top: 14px; }
 @media (max-width: 768px) {
   .admin-page { max-width: 100%; margin: 0; }

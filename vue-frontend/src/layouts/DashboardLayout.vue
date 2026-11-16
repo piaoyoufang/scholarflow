@@ -9,7 +9,7 @@
         </div>
       </div>
 
-      <el-menu router :default-active="$route.path" background-color="transparent" text-color="#4b4266" active-text-color="#7c3aed">
+      <el-menu router :default-active="$route.path" background-color="transparent" text-color="#cbd5e1" active-text-color="#ffffff">
         <el-menu-item index="/courses">我的课程</el-menu-item>
         <template v-if="auth.isAdmin">
           <el-menu-item index="/admin/stats">数据统计</el-menu-item>
@@ -48,7 +48,7 @@
     </el-container>
 
     <el-drawer v-model="mobileMenuVisible" title="高校课程AI学习助手" direction="ltr" size="78%" class="mobile-drawer">
-      <el-menu router :default-active="$route.path" background-color="transparent" text-color="#4b4266" active-text-color="#7c3aed" @select="mobileMenuVisible = false">
+      <el-menu router :default-active="$route.path" background-color="transparent" text-color="#cbd5e1" active-text-color="#ffffff" @select="mobileMenuVisible = false">
         <el-menu-item index="/courses">我的课程</el-menu-item>
         <template v-if="auth.isTeacher">
           <el-menu-item index="/documents">课程知识库</el-menu-item>
@@ -98,30 +98,29 @@ async function logout() {
 
 <style scoped>
 .app-layout { min-height: 100vh; }
-.aside { padding: 22px 14px; background: #ffffff; border-right: 1px solid #e2e8f0; box-shadow: 0 10px 34px -30px rgba(15,23,42,.08); backdrop-filter: blur(22px); -webkit-backdrop-filter: blur(22px); display: flex; flex-direction: column; }
+.aside { padding: 22px 14px; background: rgba(255,255,255,.055); border-right: 1px solid rgba(255,255,255,.11); backdrop-filter: blur(22px); -webkit-backdrop-filter: blur(22px); display: flex; flex-direction: column; }
 .brand { display: flex; gap: 12px; align-items: center; padding: 8px 10px 22px; }
-.brand-mark { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; background: linear-gradient(140deg,#7c3aed,#db2777); font-weight: 800; font-size: 12px; color: #fff; box-shadow: 0 10px 24px -14px rgba(124,58,237,.55); }
-.brand-name { font-weight: 700; color: #221b3a; font-size: 14px; letter-spacing: -.01em; }
-.brand-sub { font-size: 11px; color: #6b6482; margin-top: 3px; }
+.brand-mark { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; background: linear-gradient(140deg,#a78bfa,#ec4899); font-weight: 800; font-size: 12px; color: #fff; box-shadow: 0 10px 26px -12px rgba(236,72,153,.9); }
+.brand-name { font-weight: 700; color: #fff; font-size: 14px; letter-spacing: -.01em; }
+.brand-sub { font-size: 11px; color: rgba(255,255,255,.5); margin-top: 3px; }
 :deep(.el-menu) { border-right: 0; display: grid; gap: 3px; background: transparent !important; }
-:deep(.el-menu-item) { height: 40px; line-height: 40px; border-radius: 10px; margin: 0; padding-left: 14px !important; font-weight: 500; font-size: 13px; color: #4b4266 !important; border: 1px solid transparent; transition: .18s ease; }
-:deep(.el-menu-item:hover) { background: rgba(124,58,237,.08) !important; color: #221b3a !important; }
-:deep(.el-menu-item.is-active) { background: rgba(124,58,237,.12) !important; border-color: rgba(124,58,237,.24); box-shadow: 0 10px 24px -20px rgba(124,58,237,.25); color: #7c3aed !important; font-weight: 600; }
+:deep(.el-menu-item) { height: 40px; line-height: 40px; border-radius: 10px; margin: 0; padding-left: 14px !important; font-weight: 500; font-size: 13px; color: rgba(255,255,255,.74) !important; border: 1px solid transparent; transition: .18s ease; }
+:deep(.el-menu-item:hover) { background: rgba(255,255,255,.09) !important; color: #fff !important; }
+:deep(.el-menu-item.is-active) { background: rgba(255,255,255,.16) !important; border-color: rgba(255,255,255,.24); box-shadow: 0 10px 26px -18px rgba(255,255,255,.65); color: #fff !important; font-weight: 600; }
 .aside-footer { margin-top: auto; padding: 0 6px; display: grid; gap: 10px; }
 .logout-btn { width: 100%; }
-.topbar { height: 62px; display: flex; align-items: center; justify-content: space-between; gap: 14px; border-bottom: 1px solid #e2e8f0; background: #ffffff; backdrop-filter: blur(22px); -webkit-backdrop-filter: blur(22px); padding: 0 26px; }
+.topbar { height: 62px; display: flex; align-items: center; justify-content: space-between; gap: 14px; border-bottom: 1px solid rgba(255,255,255,.1); background: rgba(255,255,255,.05); backdrop-filter: blur(22px); -webkit-backdrop-filter: blur(22px); padding: 0 26px; }
 .mobile-menu-btn { display: none; flex: 0 0 auto; }
 .topbar-title-block { min-width: 0; }
-.top-title { color: #221b3a; font-size: 16px; font-weight: 700; letter-spacing: -.01em; }
-.course-line { color: #6b6482; margin-top: 4px; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.top-title { color: #fff; font-size: 16px; font-weight: 700; letter-spacing: -.01em; }
+.course-line { color: rgba(255,255,255,.55); margin-top: 4px; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .main { padding: 26px 28px 60px; }
 .mobile-logout { width: 100%; margin-top: 18px; }
-:global(.mobile-drawer .el-drawer__body) { background: #fff; padding: 14px; }
-:global(.mobile-drawer .el-drawer__header) { margin-bottom: 0; padding: 18px; background: #fff; color: #221b3a; border-bottom: 1px solid #eef2f7; }
-:global(.mobile-drawer .el-drawer__title) { color: #221b3a; }
+:global(.mobile-drawer .el-drawer__body) { background: rgba(18,12,30,.98); padding: 14px; }
+:global(.mobile-drawer .el-drawer__header) { margin-bottom: 0; padding: 18px; background: rgba(18,12,30,.98); color: #fff; }
 :global(.mobile-drawer .el-menu) { border-right: 0; background: transparent !important; }
-:global(.mobile-drawer .el-menu-item) { border-radius: 10px; margin-bottom: 4px; font-weight: 500; color: #4b4266; }
-:global(.mobile-drawer .el-menu-item.is-active) { background: rgba(124,58,237,.12); color: #7c3aed; }
+:global(.mobile-drawer .el-menu-item) { border-radius: 10px; margin-bottom: 4px; font-weight: 500; color: rgba(255,255,255,.75); }
+:global(.mobile-drawer .el-menu-item.is-active) { background: rgba(255,255,255,.16); color: #fff; }
 @media (max-width: 900px) {
   .aside { display:none; }
   /* 新增：移动端响应式，避免全局按钮 100% 宽度把顶部撑高 */

@@ -12,9 +12,9 @@
       <svg class="flow" viewBox="0 0 1440 900" preserveAspectRatio="none">
         <defs>
           <linearGradient id="flowGrad" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0" stop-color="#7c3aed" stop-opacity="0" />
-            <stop offset=".45" stop-color="#a78bfa" stop-opacity=".45" />
-            <stop offset="1" stop-color="#db2777" stop-opacity="0" />
+            <stop offset="0" stop-color="#8b5cf6" stop-opacity="0" />
+            <stop offset=".45" stop-color="#a78bfa" stop-opacity=".5" />
+            <stop offset="1" stop-color="#ec4899" stop-opacity="0" />
           </linearGradient>
         </defs>
         <path class="flow-line" d="M-40 730 C 240 650, 380 520, 640 570 S 1000 770, 1220 620" />
@@ -41,9 +41,9 @@
           <svg class="network" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
             <defs>
               <linearGradient id="netGrad" x1="0" y1="0" x2="1" y2="1">
-                <stop offset="0" stop-color="#7c3aed" stop-opacity=".55" />
-                <stop offset=".5" stop-color="#93c5fd" stop-opacity=".4" />
-                <stop offset="1" stop-color="#db2777" stop-opacity=".5" />
+                <stop offset="0" stop-color="#8b5cf6" stop-opacity=".72" />
+                <stop offset=".5" stop-color="#38bdf8" stop-opacity=".42" />
+                <stop offset="1" stop-color="#ec4899" stop-opacity=".66" />
               </linearGradient>
             </defs>
             <path d="M16 26 C 30 18, 38 20, 50 24" vector-effect="non-scaling-stroke" />
@@ -293,11 +293,12 @@ async function register() {
   overflow: hidden;
   padding: clamp(40px, 8vh, 96px) clamp(20px, 4vw, 64px) clamp(28px, 5vh, 64px);
   background:
-    radial-gradient(54% 48% at 46% 30%, rgba(196, 181, 253, 0.12), transparent 70%),
-    radial-gradient(44% 42% at 0% -6%, rgba(167, 139, 250, 0.12), transparent 62%),
-    radial-gradient(42% 40% at 100% -4%, rgba(191, 219, 254, 0.14), transparent 64%),
-    radial-gradient(46% 44% at 86% 102%, rgba(249, 168, 212, 0.1), transparent 68%),
-    linear-gradient(160deg, #ffffff 0%, #fbfaff 48%, #f8fafc 100%);
+    radial-gradient(56% 52% at 48% 32%, rgba(108, 78, 196, 0.4), transparent 70%),
+    radial-gradient(46% 44% at 2% -4%, rgba(139, 92, 246, 0.6), transparent 62%),
+    radial-gradient(42% 40% at 100% -2%, rgba(72, 132, 255, 0.4), transparent 64%),
+    radial-gradient(48% 46% at 84% 102%, rgba(236, 72, 153, 0.42), transparent 68%),
+    radial-gradient(40% 42% at 12% 100%, rgba(56, 189, 248, 0.24), transparent 66%),
+    linear-gradient(152deg, #141539 0%, #1b1342 34%, #14102f 64%, #0a0c24 100%);
 }
 
 .bg-layer { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
@@ -307,44 +308,44 @@ async function register() {
   position: absolute;
   inset: -1px;
   background-image:
-    linear-gradient(rgba(124, 58, 237, 0.08) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(124, 58, 237, 0.08) 1px, transparent 1px);
+    linear-gradient(rgba(255, 255, 255, 0.065) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.065) 1px, transparent 1px);
   background-size: 64px 64px;
   -webkit-mask-image: radial-gradient(88% 84% at 46% 40%, #000 26%, transparent 86%);
   mask-image: radial-gradient(88% 84% at 46% 40%, #000 26%, transparent 86%);
-  opacity: 0.5;
+  opacity: 0.95;
 }
 
 .glow { position: absolute; border-radius: 50%; filter: blur(10px); }
 .glow-violet {
   width: 780px; height: 780px; left: -230px; top: -230px;
-  background: radial-gradient(circle, rgba(167, 139, 250, 0.12), transparent 68%);
+  background: radial-gradient(circle, rgba(139, 92, 246, 0.56), transparent 68%);
 }
 .glow-blue {
   width: 620px; height: 620px; right: 2%; top: -12%;
-  background: radial-gradient(circle, rgba(147, 197, 253, 0.14), transparent 70%);
+  background: radial-gradient(circle, rgba(56, 132, 255, 0.38), transparent 70%);
 }
 .glow-pink {
   width: 820px; height: 820px; right: 6%; bottom: -38%;
-  background: radial-gradient(circle, rgba(249, 168, 212, 0.12), transparent 68%);
+  background: radial-gradient(circle, rgba(236, 72, 153, 0.42), transparent 68%);
 }
 
 /* 半透明圆环与弧形轨道 */
-.ring { position: absolute; border-radius: 50%; border: 1px solid rgba(124, 58, 237, 0.1); }
+.ring { position: absolute; border-radius: 50%; border: 1px solid rgba(167, 139, 250, 0.13); }
 .ring-lg { width: min(1020px, 96vw); aspect-ratio: 1; right: -20%; top: -34%; }
 .ring-md {
   width: min(660px, 62vw); aspect-ratio: 1; right: -4%; top: -14%;
-  border-style: dashed; border-color: rgba(124, 58, 237, 0.08);
+  border-style: dashed; border-color: rgba(196, 181, 253, 0.1);
 }
 .ring-arc {
   position: absolute;
   width: min(1100px, 110vw); aspect-ratio: 1;
   left: -46%; bottom: -62%;
   border-radius: 50%;
-  background: conic-gradient(from 128deg, transparent 0 52%, rgba(249, 168, 212, 0.22) 64%, rgba(167, 139, 250, 0.2) 72%, transparent 80%);
+  background: conic-gradient(from 128deg, transparent 0 52%, rgba(236, 72, 153, 0.3) 64%, rgba(139, 92, 246, 0.24) 72%, transparent 80%);
   -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 1.5px), #000 calc(100% - 1px));
   mask: radial-gradient(farthest-side, transparent calc(100% - 1.5px), #000 calc(100% - 1px));
-  opacity: 0.7;
+  opacity: 0.8;
 }
 
 /* 数据流线 */
@@ -366,8 +367,8 @@ async function register() {
   width: 3px;
   height: 3px;
   border-radius: 50%;
-  background: #c4b5fd;
-  box-shadow: 0 0 8px 1px rgba(167, 139, 250, 0.5);
+  background: #ddd6fe;
+  box-shadow: 0 0 10px 2px rgba(167, 139, 250, 0.65);
   animation: floatDot 9s ease-in-out infinite;
 }
 .particle-1 { left: 18%; top: 26%; animation-delay: -1s; }
@@ -380,7 +381,7 @@ async function register() {
 .vignette {
   position: absolute;
   inset: 0;
-  background: radial-gradient(120% 100% at 50% 42%, transparent 52%, rgba(255, 255, 255, 0.5) 100%);
+  background: radial-gradient(120% 100% at 50% 42%, transparent 44%, rgba(5, 5, 18, 0.6) 100%);
 }
 
 /* ============ 布局骨架 ============ */
@@ -404,9 +405,9 @@ async function register() {
   gap: 8px;
   padding: 7px 14px;
   border-radius: 999px;
-  background: rgba(124, 58, 237, 0.08);
-  border: 1px solid rgba(124, 58, 237, 0.2);
-  color: #5b21b6;
+  background: rgba(139, 92, 246, 0.12);
+  border: 1px solid rgba(167, 139, 250, 0.26);
+  color: #ddd6fe;
   font-size: 12px;
   letter-spacing: 0.06em;
   animation: fadeUp 0.7s 0.05s both;
@@ -415,8 +416,8 @@ async function register() {
   width: 5px;
   height: 5px;
   border-radius: 50%;
-  background: #7c3aed;
-  box-shadow: 0 0 8px rgba(124, 58, 237, 0.55);
+  background: #c4b5fd;
+  box-shadow: 0 0 8px rgba(196, 181, 253, 0.9);
 }
 
 h1 {
@@ -425,14 +426,14 @@ h1 {
   line-height: 1.14;
   letter-spacing: -0.045em;
   font-weight: 800;
-  background: linear-gradient(120deg, #4c1d95 0%, #7c3aed 55%, #db2777 100%);
+  background: linear-gradient(180deg, #ffffff 10%, #ecdfff 62%, #c4b5fd 100%);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
   animation: fadeUp 0.8s 0.12s both;
 }
 .title-accent {
-  background: linear-gradient(100deg, #6d28d9, #7c3aed 45%, #db2777 100%);
+  background: linear-gradient(100deg, #c4b5fd, #f0abfc 55%, #f9a8d4);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
@@ -441,7 +442,7 @@ h1 {
 .subtitle {
   max-width: 560px;
   margin: 0;
-  color: var(--muted);
+  color: rgba(255, 255, 255, 0.7);
   font-size: 15px;
   line-height: 1.85;
   animation: fadeUp 0.8s 0.2s both;
@@ -483,9 +484,10 @@ h1 {
   gap: 10px;
   padding: 12px 14px;
   border-radius: 12px;
-  background: #ffffff;
-  border: 1px solid var(--border);
-  box-shadow: 0 12px 28px -24px rgba(15, 23, 42, 0.28);
+  background: rgba(46, 38, 88, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
   transform: translateY(var(--shift));
   transition: all 0.2s ease;
   animation: moduleIn 0.7s cubic-bezier(0.22, 0.61, 0.36, 1) both;
@@ -493,9 +495,9 @@ h1 {
 }
 .capability:hover {
   transform: translateY(-3px);
-  background: #ffffff;
-  border-color: rgba(124, 58, 237, 0.32);
-  box-shadow: 0 18px 38px -24px rgba(124, 58, 237, 0.35);
+  background: rgba(64, 52, 116, 0.42);
+  border-color: rgba(196, 181, 253, 0.42);
+  box-shadow: 0 18px 40px -24px rgba(139, 92, 246, 0.9);
 }
 
 .cap-icon {
@@ -505,23 +507,23 @@ h1 {
   width: 34px;
   height: 34px;
   border-radius: 9px;
-  background: linear-gradient(150deg, rgba(124, 58, 237, 0.16), rgba(219, 39, 119, 0.1));
-  border: 1px solid rgba(124, 58, 237, 0.2);
-  color: #6d28d9;
+  background: linear-gradient(150deg, rgba(139, 92, 246, 0.42), rgba(236, 72, 153, 0.26));
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  color: #f3e8ff;
   font-size: 16px;
 }
 .cap-text h3 {
   margin: 1px 0 3px;
   font-size: 14px;
   font-weight: 600;
-  color: var(--text);
+  color: #fff;
   letter-spacing: -0.01em;
 }
 .cap-text p {
   margin: 0;
   font-size: 12px;
   line-height: 1.55;
-  color: var(--muted);
+  color: rgba(255, 255, 255, 0.62);
 }
 
 /* ============ 数据预览 ============ */
@@ -531,9 +533,10 @@ h1 {
   margin-top: clamp(16px, 2vw, 24px);
   padding: 8px 6px;
   border-radius: 12px;
-  background: #ffffff;
-  border: 1px solid var(--border-soft);
-  box-shadow: 0 8px 20px -18px rgba(15, 23, 42, 0.18);
+  background: rgba(255, 255, 255, 0.035);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   animation: fadeUp 0.8s 0.5s both;
 }
 .stat-card {
@@ -553,19 +556,19 @@ h1 {
   transform: translateY(-50%);
   width: 1px;
   height: 26px;
-  background: rgba(88, 63, 160, 0.14);
+  background: rgba(255, 255, 255, 0.1);
 }
-.stat-card:hover { background: rgba(124, 58, 237, 0.05); }
+.stat-card:hover { background: rgba(255, 255, 255, 0.05); }
 .stat-value {
   font-size: 18px;
   font-weight: 700;
   letter-spacing: -0.02em;
-  background: linear-gradient(135deg, #4c1d95, #7c3aed 70%, #db2777);
+  background: linear-gradient(180deg, #fff, #d8c9ff);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
 }
-.stat-label { font-size: 11px; color: var(--muted); }
+.stat-label { font-size: 11px; color: rgba(255, 255, 255, 0.58); }
 
 /* ============ 登录面板 ============ */
 .login-panel {
@@ -575,9 +578,11 @@ h1 {
   width: min(100%, 340px);
   padding: clamp(22px, 2vw, 26px);
   border-radius: 12px;
-  background: #ffffff;
-  border: 1px solid var(--border);
-  box-shadow: 0 24px 60px -40px rgba(15, 23, 42, 0.3), 0 0 30px -24px rgba(124, 58, 237, 0.18);
+  background: linear-gradient(155deg, rgba(58, 47, 106, 0.36), rgba(26, 21, 52, 0.28));
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 40px 90px -34px rgba(0, 0, 0, 0.92), 0 0 46px -22px rgba(139, 92, 246, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.09);
+  backdrop-filter: blur(22px) saturate(130%);
+  -webkit-backdrop-filter: blur(22px) saturate(130%);
   overflow: hidden;
   animation: fadeUp 0.9s 0.28s both;
 }
@@ -586,7 +591,7 @@ h1 {
   position: absolute;
   inset: 0 0 auto;
   height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(196, 181, 253, 0.7), transparent);
+  background: linear-gradient(90deg, transparent, rgba(196, 181, 253, 0.55), transparent);
 }
 .panel-aura {
   position: absolute;
@@ -595,7 +600,7 @@ h1 {
   right: -130px;
   top: -150px;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(249, 168, 212, 0.1), transparent 70%);
+  background: radial-gradient(circle, rgba(236, 72, 153, 0.2), transparent 70%);
   pointer-events: none;
 }
 .panel-inner { position: relative; z-index: 1; }
@@ -605,29 +610,29 @@ h1 {
   font-size: 24px;
   font-weight: 700;
   letter-spacing: -0.02em;
-  color: var(--text);
+  color: #fff;
 }
 .panel-desc {
   margin: 0 0 18px;
   font-size: 12.5px;
   line-height: 1.65;
-  color: var(--muted);
+  color: rgba(255, 255, 255, 0.68);
 }
 
 .auth-form :deep(.el-form-item) { margin-bottom: 14px; }
 .auth-form :deep(.el-input__wrapper) { min-height: 44px; }
 .auth-form :deep(.el-form-item__label) {
   font-size: 13px;
-  color: var(--text-2) !important;
+  color: rgba(255, 255, 255, 0.74) !important;
 }
-.auth-form :deep(.el-input__inner::placeholder) { color: #9a92b3 !important; }
+.auth-form :deep(.el-input__inner::placeholder) { color: rgba(255, 255, 255, 0.48) !important; }
 .auth-form :deep(.el-input__prefix),
-.auth-form :deep(.el-input__suffix) { color: var(--muted) !important; }
+.auth-form :deep(.el-input__suffix) { color: rgba(255, 255, 255, 0.62) !important; }
 .auth-form :deep(.el-form-item:last-of-type) { margin-bottom: 18px; }
 
 .pwd-toggle { cursor: pointer; transition: all 0.2s ease; }
-.pwd-toggle:hover { color: var(--primary); }
-.pwd-toggle:focus-visible { outline: 2px solid rgba(124, 58, 237, 0.55); outline-offset: 2px; border-radius: 4px; }
+.pwd-toggle:hover { color: #e9d5ff; }
+.pwd-toggle:focus-visible { outline: 2px solid rgba(167, 139, 250, 0.7); outline-offset: 2px; border-radius: 4px; }
 
 .submit-btn {
   width: 100%;
@@ -644,25 +649,25 @@ h1 {
   gap: 12px;
   margin-top: 14px;
   font-size: 12.5px;
-  color: var(--muted);
+  color: rgba(255, 255, 255, 0.62);
 }
 .panel-links button {
   padding: 2px 4px;
   border: 0;
   background: transparent;
-  color: var(--primary);
+  color: inherit;
   font: inherit;
   cursor: pointer;
   transition: all 0.2s ease;
   border-radius: 6px;
 }
-.panel-links button:hover { color: #5b21b6; }
-.panel-links button:focus-visible { outline: 2px solid rgba(124, 58, 237, 0.55); outline-offset: 2px; }
-.link-divider { width: 1px; height: 12px; background: rgba(88, 63, 160, 0.18); }
+.panel-links button:hover { color: #f0abfc; }
+.panel-links button:focus-visible { outline: 2px solid rgba(167, 139, 250, 0.7); outline-offset: 2px; }
+.link-divider { width: 1px; height: 12px; background: rgba(255, 255, 255, 0.16); }
 
 .role-selector { width: 100%; display: grid; grid-template-columns: 1fr 1fr; }
 .role-selector :deep(.el-radio-button__inner) { width: 100%; font-weight: 600; }
-.role-tip { margin-top: 8px; color: var(--muted-2); font-size: 11.5px; line-height: 1.6; }
+.role-tip { margin-top: 8px; color: rgba(255, 255, 255, 0.42); font-size: 11.5px; line-height: 1.6; }
 
 /* 登录 / 注册切换过渡 */
 .swap-enter-active,

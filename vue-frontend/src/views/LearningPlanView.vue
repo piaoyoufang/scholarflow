@@ -179,26 +179,26 @@ onMounted(loadHistory)
 <style scoped>
 .plan-form-card { margin-bottom: 22px; }
 .history-card { margin-bottom: 22px; }
-.history-header { display: flex; align-items: center; justify-content: space-between; font-weight: 600; color: var(--text); font-size: 14px; }
+.history-header { display: flex; align-items: center; justify-content: space-between; font-weight: 600; color: #fff; font-size: 14px; }
 .history-list { display: grid; gap: 10px; }
-.history-item { display: flex; gap: 12px; align-items: center; padding: 10px 12px; border: 1px solid var(--border); border-radius: 14px; background: rgba(255,255,255,.5); }
-.history-item.active { border-color: rgba(124,58,237,.45); background: rgba(124,58,237,.06); }
+.history-item { display: flex; gap: 12px; align-items: center; padding: 10px 12px; border: 1px solid rgba(148,163,184,.22); border-radius: 14px; }
+.history-item.active { border-color: #3b82f6; background: rgba(37,99,235,.08); }
 .history-main { flex: 1; display: grid; gap: 4px; border: 0; padding: 0; background: transparent; text-align: left; cursor: pointer; }
-.history-main b { color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.history-main span, .history-main small { color: var(--muted); font-size: 12px; }
+.history-main b { color: #fff; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.history-main span, .history-main small { color: rgba(255,255,255,.55); font-size: 12px; }
 .result-section { margin-top: 20px; }
-.result-header { display: flex; justify-content: space-between; gap: 16px; align-items: flex-end; margin-bottom: 16px; color: var(--text); }
+.result-header { display: flex; justify-content: space-between; gap: 16px; align-items: flex-end; margin-bottom: 16px; color: #fff; }
 .result-header h2 { margin: 0 0 6px; font-size: 22px; font-weight: 900; }
-.result-header p { margin: 0; color: var(--muted); }
+.result-header p { margin: 0; color: rgba(255,255,255,.55); }
 .plan-list { display: grid; gap: 16px; }
-.plan-day-card { border-radius: 16px; border: 1px solid var(--border); background: rgba(255,255,255,.72); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); box-shadow: 0 18px 44px -30px rgba(76,29,149,.35); }
-.day-index { display: inline-flex; height: 28px; align-items: center; padding: 0 12px; border-radius: 999px; background: rgba(124,58,237,.1); color: #6d28d9; font-size: 12px; font-weight: 900; border: 1px solid rgba(124,58,237,.24); }
-.plan-day-card h3 { margin: 12px 0 14px; color: var(--text); font-size: 18px; font-weight: 900; }
+.plan-day-card { border-radius: 16px; border: 1px solid rgba(255,255,255,.18); background: rgba(255,255,255,.1); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); box-shadow: 0 20px 44px -30px rgba(236,72,153,.5); }
+.day-index { display: inline-flex; height: 28px; align-items: center; padding: 0 12px; border-radius: 999px; background: rgba(37,99,235,.16); color: #93c5fd; font-size: 12px; font-weight: 900; border: 1px solid rgba(96,165,250,.28); }
+.plan-day-card h3 { margin: 12px 0 14px; color: #f8fafc; font-size: 18px; font-weight: 900; }
 .task-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; }
-.task-list li { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border-radius: 14px; background: rgba(255,255,255,.55); border: 1px solid var(--border-soft); }
-.task-list span { flex: 0 0 24px; width: 24px; height: 24px; display: grid; place-items: center; border-radius: 999px; background: linear-gradient(135deg,#7c3aed,#db2777); color: #fff; font-size: 12px; font-weight: 700; }
-.task-list p { margin: 0; color: var(--text-2); line-height: 1.7; }
-.output-box { margin-top: 14px; padding: 12px 14px; border-radius: 16px; background: rgba(124,58,237,.06); border: 1px solid rgba(124,58,237,.18); }
-.output-box b { color: #6d28d9; }
-.output-box p { margin: 6px 0 0; color: var(--text-2); line-height: 1.7; }
+.task-list li { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border-radius: 14px; background: rgba(255,255,255,.04); border: 1px solid rgba(148,163,184,.14); }
+.task-list span { flex: 0 0 24px; width: 24px; height: 24px; display: grid; place-items: center; border-radius: 999px; background: linear-gradient(135deg,#8b5cf6,#ec4899); color: #fff; font-size: 12px; font-weight: 700; }
+.task-list p { margin: 0; color: rgba(255,255,255,.82); line-height: 1.7; }
+.output-box { margin-top: 14px; padding: 12px 14px; border-radius: 16px; background: rgba(14,165,233,.10); border: 1px solid rgba(14,165,233,.24); }
+.output-box b { color: #93c5fd; }
+.output-box p { margin: 6px 0 0; color: rgba(255,255,255,.82); line-height: 1.7; }
 </style>

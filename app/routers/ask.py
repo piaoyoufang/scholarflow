@@ -1,8 +1,9 @@
 ﻿"""问答域路由：课程问答（含流式）、全局问答、问答反馈、问答事件处理——从 api.py 原样搬入"""
+import asyncio
 from json import dumps as json_dumps
 from time import perf_counter
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import StreamingResponse
 
 from app.analytics.qa_events import qa_event_store
@@ -11,7 +12,8 @@ from app.config import settings
 from app.courses.store import course_store
 from app.deps import current_session, ensure_course_access
 from app.feedback.store import feedback_store
-from app.graph.builder import get_async_memory_workflow, memory_workflow
+from app.graph.builder import memory_workflow, retrieval_workflow
+from app.graph.nodes import build_citations, stream_answer_text, update_memory_summary
 from app.observability import get_logger
 from app.rate_limit import ask_rate_limiter, model_semaphore
 from app.schemas import AskRequest, FeedbackRequest, QAEventProcessRequest
@@ -127,17 +129,18 @@ def ask_course(
 
 
 # 流式问答接口：与 ask_course 同一业务逻辑，只把返回形式改成 SSE 事件流。
-# 注意：answer_node 用 with_structured_output(ResearchAnswer)，结构化输出不支持逐 token 流式，
-# 所以这里做的是「节点级流式」——推送各节点进度事件，答案在 answer_agent 完成后一次性下发。
+# 检索/分析先同步跑完（retrieval_workflow），回答正文由 stream_answer_text 逐段生成，
+# 这样前端不用等整段回答生成完就能渲染，同时保持引用与证据编号对齐。
 @router.post("/courses/{course_id}/ask/stream", tags=["问答"], summary="课程内问答（流式）")
 async def ask_course_stream(
     course_id: str,
     request: AskRequest,
+    http_request: Request,
     session: tuple[str, str] = Depends(current_session),
 ):
     """
     课程知识库问答接口（SSE 流式版）
-    事件类型：status=节点进度 / answer=完整答案与引用 / error=中途出错 / done=正常结束
+    事件类型：meta=阶段信息 / delta=增量正文 / done=最终答案与引用 / error=中途出错
     """
     user_id, _ = session
 
@@ -153,15 +156,26 @@ async def ask_course_stream(
     except PermissionError as exc:
         raise HTTPException(status_code=403, detail=str(exc)) from exc
 
-    # LangGraph 节点名 -> 前端进度文案；astream_events 事件里的 name 就是 add_node 的第一个参数
-    PROGRESS_TEXT = {
-        "rewrite_question": "正在理解问题",
-        "supervisor": "正在判断问题类型",
-        "knowledge_agent": "正在检索课程资料",
-        "report_agent": "正在查询评估报表",
-        "diagnosis_agent": "正在分析学习情况",
-        "answer_agent": "正在生成回答",
-    }
+    # 与非流式接口共用同一份限流额度，避免绕过限制刷问答
+    if settings.rate_limit_enabled:
+        decision = ask_rate_limiter.check(
+            f"ask:user:{user_id}",
+            settings.ask_rate_limit_max_requests,
+        )
+        if not decision.allowed:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="问答请求过于频繁，请稍后重试",
+                headers={"Retry-After": str(decision.retry_after)},
+            )
+
+    # 流式响应一旦开始就无法再改状态码，所以并发信号量必须在返回响应前抢占
+    if not model_semaphore.acquire(blocking=False):
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="当前提问人数较多，请稍后重试",
+            headers={"Retry-After": "3"},
+        )
 
     def sse(event: str, data: dict) -> str:
         """一帧 SSE 报文：event 行 + data 行，两个换行结束一帧（SSE 协议格式）"""
@@ -169,50 +183,121 @@ async def ask_course_stream(
 
     async def event_stream():
         """SSE 事件流生成器：每 yield 一个字符串就是一帧，前端逐帧消费"""
-        answer_payload = None
+        started_at = perf_counter()
         try:
-            # 异步记忆图：SqliteSaver 不支持 async，流式必须用挂 AsyncSqliteSaver 的图实例
-            stream_workflow = await get_async_memory_workflow()
-            # astream_events 是 LangGraph 的事件流 API：图执行中每个节点的开始/结束都产出事件，
-            # version="v2" 是当前稳定事件协议
-            async for ev in stream_workflow.astream_events(
-                {"question": request.question, "course_id": course_id},
-                config={"configurable": {"thread_id": request.thread_id}},
-                version="v2",
-            ):
-                # 只关心业务节点事件；图整体（LangGraph）和内部 Runnable 的事件过滤掉
-                name = ev.get("name", "")
-                if name not in PROGRESS_TEXT:
-                    continue
-                if ev["event"] == "on_chain_start":
-                    yield sse("status", {"node": name, "msg": PROGRESS_TEXT[name]})
-                elif ev["event"] == "on_chain_end" and name == "answer_agent":
-                    # answer_agent 结束：答案生成完毕，一次性下发完整结构化答案
-                    # output 是节点返回的状态更新字典，answer 是 ResearchAnswer 对象
-                    output = ev["data"].get("output") or {}
-                    answer_obj = output.get("answer")
-                    if hasattr(answer_obj, "model_dump"):
-                        answer_payload = answer_obj.model_dump()
-                    elif isinstance(answer_obj, dict):
-                        answer_payload = answer_obj
-                    else:
-                        answer_payload = {
-                            "answer": str(answer_obj or ""),
-                            "citations": [],
-                            "confidence": 0,
-                            "missing_information": [],
-                        }
-                    yield sse("answer", answer_payload)
-        except Exception as exc:
-            # 流式中途出错不能用 HTTP 状态码（响应头早已发出），只能用 error 事件通知前端
-            # CancelledError（前端主动断开）不是 Exception 子类，会直接向上传播中断图执行，这正是取消语义
-            yield sse("error", {"msg": str(exc)})
-            return
+            yield sse("meta", {"stage": "retrieving", "thread_id": request.thread_id})
 
-        # 答案成功产出后补齐 ask_course 的副作用：写问答埋点、更新会话标题，保持两个接口行为一致
-        if answer_payload:
-            answer_text = str(answer_payload.get("answer", ""))
-            citations = answer_payload.get("citations", []) or []
+            # 检索/分析阶段同步执行（放到线程里避免阻塞事件循环），完成后 state 里已有证据
+            try:
+                state = await asyncio.to_thread(
+                    retrieval_workflow.invoke,
+                    {"question": request.question, "course_id": course_id},
+                    config={"configurable": {"thread_id": request.thread_id}},
+                )
+            except Exception:
+                logger.exception(
+                    "course.ask_stream.retrieve_failed",
+                    extra={
+                        "event": "course.ask_stream.retrieve_failed",
+                        "details": {
+                            "course_id": course_id,
+                            "user_id": user_id,
+                            "thread_id": request.thread_id,
+                        },
+                    },
+                )
+                yield sse("error", {"stage": "retrieving", "message": "检索阶段失败，请稍后重试"})
+                return
+
+            state = state if isinstance(state, dict) else {}
+            sources = sorted({
+                str((doc.metadata or {}).get("source_name") or "未知来源")
+                for doc in state.get("documents", [])
+            })
+            yield sse("meta", {"stage": "answering", "sources": sources})
+
+            # 记忆摘要最多每三轮触发一次 LLM 压缩，放到线程里避免阻塞事件循环
+            memory_summary = await asyncio.to_thread(update_memory_summary, state)
+
+            answer_parts: list[str] = []
+            iterator = stream_answer_text(state, memory_summary).__aiter__()
+            try:
+                while True:
+                    try:
+                        piece = await asyncio.wait_for(iterator.__anext__(), timeout=15)
+                    except asyncio.TimeoutError:
+                        # 模型长时间无输出时发送心跳注释，避免连接被代理提前断开
+                        yield ": keep-alive\n\n"
+                        continue
+                    except StopAsyncIteration:
+                        break
+                    if await http_request.is_disconnected():
+                        logger.info(
+                            "course.ask_stream.client_closed",
+                            extra={
+                                "event": "course.ask_stream.client_closed",
+                                "details": {
+                                    "course_id": course_id,
+                                    "user_id": user_id,
+                                    "thread_id": request.thread_id,
+                                },
+                            },
+                        )
+                        return
+                    answer_parts.append(piece)
+                    yield sse("delta", {"text": piece})
+            except Exception:
+                logger.exception(
+                    "course.ask_stream.generate_failed",
+                    extra={
+                        "event": "course.ask_stream.generate_failed",
+                        "details": {
+                            "course_id": course_id,
+                            "user_id": user_id,
+                            "thread_id": request.thread_id,
+                        },
+                    },
+                )
+                yield sse("error", {"stage": "answering", "message": "生成回答失败，请稍后重试"})
+                return
+
+            answer_text = "".join(answer_parts).strip()
+            citations = [item.model_dump() for item in build_citations(state)]
+
+            # 把本轮问答写回 checkpoint，保证下一轮仍能读取多轮上下文
+            try:
+                await asyncio.to_thread(
+                    retrieval_workflow.update_state,
+                    {"configurable": {"thread_id": request.thread_id}},
+                    {
+                        "history": [
+                            {"role": "user", "content": request.question},
+                            {"role": "assistant", "content": answer_text},
+                        ],
+                        "memory_summary": memory_summary,
+                        "turn_count": int(state.get("turn_count", 0) or 0) + 1,
+                    },
+                )
+            except Exception:
+                logger.exception(
+                    "course.ask_stream.checkpoint_failed",
+                    extra={
+                        "event": "course.ask_stream.checkpoint_failed",
+                        "details": {
+                            "course_id": course_id,
+                            "user_id": user_id,
+                            "thread_id": request.thread_id,
+                        },
+                    },
+                )
+
+            if not answer_text:
+                quality_score = 0
+            elif not citations:
+                quality_score = 50
+            else:
+                quality_score = 100
+
             qa_event_store.record_event(
                 course_id=course_id,
                 user_id=user_id,
@@ -220,31 +305,36 @@ async def ask_course_stream(
                 question=request.question,
                 answer=answer_text,
                 citation_count=len(citations),
+                pass_result=bool(answer_text),
+                quality_score=quality_score,
+                error="",
             )
+            delete_prefix(f"course:{course_id}:")
+
             try:
                 auth_store.update_thread_title(user_id, request.thread_id, request.question)
             except (LookupError, PermissionError):
                 logger.exception(
-                    "course.ask.thread_title_update_failed",
+                    "course.ask_stream.thread_title_update_failed",
                     extra={
-                        "event": "course.ask.thread_title_update_failed",
+                        "event": "course.ask_stream.thread_title_update_failed",
                         "details": {"user_id": user_id, "thread_id": request.thread_id},
                     },
                 )
-            logger.info(
-                "course.ask.completed",
-                extra={
-                    "event": "course.ask.completed",
-                    "details": {
-                        "course_id": course_id,
-                        "user_id": user_id,
-                        "thread_id": request.thread_id,
-                        "citation_count": len(citations),
-                        "stream": True,
-                    },
+
+            yield sse(
+                "done",
+                {
+                    "thread_id": request.thread_id,
+                    "answer": answer_text,
+                    "citations": citations,
+                    "confidence": 0.85 if citations else 0.6,
+                    "latency_ms": round((perf_counter() - started_at) * 1000, 2),
                 },
             )
-        yield sse("done", {})
+        finally:
+            # 无论正常结束、异常还是客户端断开，都必须释放模型并发名额
+            model_semaphore.release()
 
     # text/event-stream 声明 SSE 协议；no-cache 与 X-Accel-Buffering 防止反向代理缓冲事件流
     return StreamingResponse(

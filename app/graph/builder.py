@@ -50,7 +50,8 @@ def route_after_supervisor(state: AgentState) -> str:
 
 # 构建完整LangGraph问答流程图的工厂函数
 # checkpointer：可选参数，传入记忆持久化对象可实现对话历史断点保存
-def build_graph(checkpointer=None):
+# with_answer=False 时只跑到检索/分析 Agent 就结束，用于流式回答：检索同步完成后再单独流式生成正文
+def build_graph(checkpointer=None, with_answer=True):
     # 实例化状态图，绑定全局对话状态类AgentState，所有节点共享该状态
     graph = StateGraph(AgentState)
 
@@ -63,8 +64,9 @@ def build_graph(checkpointer=None):
     # 注册【评估报表智能体】节点，专门处理评估报告类查询
     graph.add_node("report_agent", report_agent_node)
     graph.add_node("diagnosis_agent", diagnosis_agent_node)
-    # 注册【最终回答生成】节点，统一汇总素材输出答案
-    graph.add_node("answer_agent", answer_agent_node)
+    # 注册【最终回答生成】节点，统一汇总素材输出答案；流式链路由 stream_answer_text 单独完成
+    if with_answer:
+        graph.add_node("answer_agent", answer_agent_node)
 
     # 流程起始START节点 → 问题改写节点，对话入口固定先走问题预处理
     graph.add_edge(START, "rewrite_question")
@@ -88,12 +90,18 @@ def build_graph(checkpointer=None):
     )
 
     # 知识检索节点执行完毕 → 统一进入回答生成节点
-    graph.add_edge("knowledge_agent", "answer_agent")
-    # 报表处理节点执行完毕 → 统一进入回答生成节点
-    graph.add_edge("report_agent", "answer_agent")
-    graph.add_edge("diagnosis_agent", "answer_agent")
-    # 最终回答生成完成 → END流程结束节点，本轮对话终止
-    graph.add_edge("answer_agent", END)
+    if with_answer:
+        graph.add_edge("knowledge_agent", "answer_agent")
+        # 报表处理节点执行完毕 → 统一进入回答生成节点
+        graph.add_edge("report_agent", "answer_agent")
+        graph.add_edge("diagnosis_agent", "answer_agent")
+        # 最终回答生成完成 → END流程结束节点，本轮对话终止
+        graph.add_edge("answer_agent", END)
+    else:
+        # 无回答节点时，检索/分析完成即结束，把证据留在 state 里交给流式生成
+        graph.add_edge("knowledge_agent", END)
+        graph.add_edge("report_agent", END)
+        graph.add_edge("diagnosis_agent", END)
 
     # 编译流程图，传入断点持久化对象（可选），返回可调用的完整对话图实例
     return graph.compile(checkpointer=checkpointer)
@@ -137,6 +145,9 @@ memory_store = SqliteSaver(
 )
 # 构建带SQLite持久会话记忆的完整Agent流程图，所有对话状态会落地保存到sqlite文件
 memory_workflow = build_graph(checkpointer=memory_store)
+
+# 仅检索/分析的流程图：流式问答先用它同步拿到证据，再单独流式生成正文，避免重复检索
+retrieval_workflow = build_graph(checkpointer=memory_store, with_answer=False)
 
 # 流式接口专用的异步记忆图：与 memory_workflow 共享同一个 checkpoint 文件和序列化器，
 # 所以流式/非流式接口读写的是同一份会话记忆；区别只是 checkpointer 换成支持 async 的 AsyncSqliteSaver。

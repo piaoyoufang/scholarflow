@@ -1,8 +1,10 @@
+from collections.abc import AsyncIterator
+
 from app.graph.state import AgentState
 from app.mcp_tools.client import call_tool_via_mcp_sync
 from app.models import chat_model, fast_model
 from app.retrieval.search import search
-from app.schemas import QuestionRewrite, ResearchAnswer, RouteDecision
+from app.schemas import Citation, QuestionRewrite, ResearchAnswer, RouteDecision
 from app.resilience import run_with_retry
 from app.runtime_metrics import runtime_metrics
 
@@ -128,10 +130,13 @@ def retrieve_node(state: AgentState) -> AgentState:
     # 若状态中不存在改写后的retrieval_question（首轮对话/改写异常），则降级使用用户原始question
     query = state.get("retrieval_question", state["question"])
 
+    # 读取当前课程ID：课程内问答必须只检索本课程知识库，避免跨课程串答
+    course_id = state.get("course_id") or None
+
     # 调用Chroma向量库检索函数search，传入处理完成的检索问句
     # k=6：从向量库中召回匹配度最高的6条文档分片
     # 返回值pairs格式为列表：[(Document文档对象, 相似度匹配分数), (Document, 分数), ...]
-    pairs = search(query, k=6)
+    pairs = search(query, k=6, course_id=course_id)
     return {"documents": [doc for doc, _score in pairs]}
 
 
@@ -446,3 +451,140 @@ LangGraph 节点的验证顺序。
         "memory_summary": memory_summary,
         "turn_count": next_turn,
     }
+
+
+def _evidence_blocks(state: AgentState) -> list[str]:
+    """把检索文档与 MCP 结果整理成带编号的证据块，编号用于回答中的 [n] 角标。"""
+    blocks: list[str] = []
+    for doc in state.get("documents", []):
+        metadata = doc.metadata or {}
+        blocks.append(
+            f"[{len(blocks) + 1}] 来源={metadata.get('source_name')}，"
+            f"source_id={metadata.get('source_id')}，"
+            f"位置={metadata.get('page', '')}\n{doc.page_content}"
+        )
+    for item in state.get("mcp_results", []):
+        blocks.append(
+            f"[{len(blocks) + 1}] 来源={item['source_name']}，source_id={item['source_id']}\n"
+            f"{item['content']}"
+        )
+    return blocks
+
+
+def build_citations(state: AgentState) -> list[Citation]:
+    """
+    流式回答没有结构化输出，引用按证据顺序反推。
+    顺序必须与 _evidence_blocks 完全一致，这样正文里的 [n] 角标才能对上引用列表。
+    """
+    citations: list[Citation] = []
+    for doc in state.get("documents", []):
+        metadata = doc.metadata or {}
+        citations.append(
+            Citation(
+                source_id=str(metadata.get("source_id", "")),
+                source_name=str(metadata.get("source_name", "未知来源")),
+                locator=str(metadata.get("page", "") or ""),
+                quote=(doc.page_content or "")[:180],
+            )
+        )
+    for item in state.get("mcp_results", []):
+        citations.append(
+            Citation(
+                source_id=str(item.get("source_id", "")),
+                source_name=str(item.get("source_name", "MCP 工具")),
+                locator="MCP",
+                quote=str(item.get("content", ""))[:180],
+            )
+        )
+    return citations
+
+
+def build_answer_prompt(
+    state: AgentState,
+    plain_text: bool = False,
+    memory_summary: str | None = None,
+) -> str:
+    """统一构造回答提示词；plain_text=True 时要求纯文本 + [n] 角标，便于流式输出。"""
+    if memory_summary is None:
+        memory_summary = update_memory_summary(state)
+
+    evidence = "\n\n".join(_evidence_blocks(state)) or "无"
+
+    decision = state.get("tool_decision")
+    tool_info = ""
+    if decision:
+        tool_info = (
+            f"工具决策：use_mcp={decision.use_mcp}；"
+            f"tool_name={decision.tool_name}；"
+            f"query={decision.query}；"
+            f"reason={decision.reason}；"
+            f"selected_tool={state.get('selected_tool', '')}；"
+            f"tool_used={state.get('tool_used', '')}；"
+            f"mcp_error={state.get('mcp_error', '')}"
+        )
+
+    history_text = "\n".join(
+        f"{item['role']}: {item['content']}"
+        for item in state.get("history", [])[-12:]
+    )
+
+    if plain_text:
+        output_rule = (
+            "直接输出 Markdown 正文，不要输出 JSON、字段名或规则复述。\n"
+            "引用证据时在句末标注角标，例如 [1]、[2]，编号必须与证据编号一致。"
+        )
+    else:
+        output_rule = "输出答案、引用、置信度和缺失信息。\n引用的 source_id 必须来自证据。"
+
+    return f"""你是证据优先的学习助理。只能根据证据回答，不足时明确说明。
+
+回答完整性规则：
+1. 先识别问题包含几个子问题，必须逐项回答，不能只回答第一项。
+2. 询问“概念/是什么”并要求解释时，尽量覆盖名称、定义、工作方式和作用。
+3. 询问“流程/步骤”时，若证据支持，要明确写出输入、编号步骤和输出。
+4. 询问“为什么”时，要说明直接原因，以及它对上下文、召回、准确性等方面的影响。
+5. 询问参数及“调大或调小”时，要同时说明参数定义、调大影响、调小影响和权衡。
+6. 优先使用证据中的准确术语，但不要为了凑词而加入证据没有的信息。
+7. 简单问题可以简洁，但不能因简洁而遗漏问题明确要求的部分。
+8. 直接给出最终结论，不要复述这些规则，不要写“问题包含几个子问题”之类的分析过程。
+9. 不要用“以下将回答”结束答案；写出引导语后必须继续给出完整实质内容。
+
+长期记忆摘要：
+{memory_summary or "无"}
+
+最近对话历史：
+{history_text or "无"}
+
+用户当前原始问题：
+{state['question']}
+
+用于检索的独立问题：
+{state.get('retrieval_question', state['question'])}
+
+工具状态：
+{tool_info}
+
+证据（引用时使用方括号内的编号）：
+{evidence}
+
+{output_rule}
+如果 MCP 工具失败，但 Chroma 证据足够，可以继续根据 Chroma 回答。
+"""
+
+
+async def stream_answer_text(
+    state: AgentState,
+    memory_summary: str | None = None,
+) -> AsyncIterator[str]:
+    """流式生成纯文本答案：检索完成后逐段产出，供 SSE 推送。"""
+    prompt = build_answer_prompt(state, plain_text=True, memory_summary=memory_summary)
+    async for chunk in chat_model().astream(prompt):
+        content = getattr(chunk, "content", "")
+        if isinstance(content, list):
+            content = "".join(
+                part.get("text", "") if isinstance(part, dict) else str(part)
+                for part in content
+            )
+        text = str(content)
+        if text:
+            yield text

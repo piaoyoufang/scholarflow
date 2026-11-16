@@ -1,7 +1,7 @@
 """认证域路由：注册、登录、刷新令牌、退出登录——从 api.py 原样搬入"""
 from fastapi import APIRouter, Depends, HTTPException
 
-from app.deps import current_session
+from app.deps import current_session, is_admin_user
 from app.schemas import AccountSessionResponse, LoginRequest, RefreshTokenRequest, RegisterRequest
 from app.security import auth_store
 
@@ -21,11 +21,15 @@ def account_response(user_id: str) -> AccountSessionResponse:
         refresh_token=refresh,
         refresh_expires_at=refresh_exp,
         role=role,
+        is_admin=is_admin_user(user_id),
     )
 
 
 @router.post("/auth/register", response_model=AccountSessionResponse, status_code=201, tags=["认证"], summary="注册账号")
 def register(request: RegisterRequest):
+    # 教师注册必须先提交邀请码；具体有效性由数据库中的一次性随机码校验
+    if request.role == "teacher" and not request.teacher_invite_code.strip():
+        raise HTTPException(status_code=403, detail="教师注册需要邀请码")
     try:
         # 调用存储层注册方法，传入前端标准化用户名、解密后的明文原始密码
         user_id = auth_store.register_user(
@@ -38,6 +42,11 @@ def register(request: RegisterRequest):
     except ValueError as exc:
         # 转换为409冲突接口异常，提示前端资源已存在（用户名重复）
         raise HTTPException(status_code=409, detail=str(exc)) from exc
+    # 教师账号创建后再核销邀请码：失败则回滚账号，避免无码也能注册成教师
+    if request.role == "teacher":
+        if not auth_store.consume_teacher_invite(request.teacher_invite_code, user_id):
+            auth_store.delete_user(user_id)
+            raise HTTPException(status_code=403, detail="邀请码无效、已被使用、已过期或已吊销")
     # 注册成功，生成双Token会话并返回给前端
     return account_response(user_id)
 
@@ -81,6 +90,7 @@ def refresh_account_session(request: RefreshTokenRequest):
         refresh_token=refresh,
         refresh_expires_at=refresh_exp,
         role=role,
+        is_admin=is_admin_user(user_id),
     )
 
 

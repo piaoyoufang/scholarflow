@@ -99,6 +99,8 @@ class RegisterRequest(BaseModel):
     password: SecretStr = Field(min_length=8, max_length=128)
     # 注册身份：学生/教师二选一。默认学生，更符合真实平台的普通用户注册流程
     role: Literal["teacher", "student"] = "student"
+    # 教师邀请码：仅 role=teacher 时必填，由管理员生成的一次性随机码
+    teacher_invite_code: str = Field(default="", max_length=64)
 
 # 用户账号密码登录接口请求体模型
 class LoginRequest(BaseModel):
@@ -118,6 +120,57 @@ class AccountSessionResponse(SessionResponse):
     refresh_token: str
     # 刷新令牌的过期时间（ISO标准时间字符串），前端用于判断何时重新登录
     refresh_expires_at: str
+    # 是否为管理员：管理员可进入教师邀请码管理页面
+    is_admin: bool = False
+
+# 管理员创建教师邀请码请求模型
+class TeacherInviteCreateRequest(BaseModel):
+    # 有效期天数，默认 7 天，范围 1~90 天
+    expires_in_days: int = Field(default=7, ge=1, le=90)
+    # 备注，便于管理员区分邀请码用途
+    note: str = Field(default="", max_length=120)
+
+# 管理员创建教师邀请码返回模型，明文码仅本次返回
+class TeacherInviteCreateResponse(BaseModel):
+    invite_id: str
+    # 明文邀请码，仅创建时返回一次，请立即转交使用者
+    code: str
+    expires_at: str
+    note: str = ""
+
+# 教师邀请码列表项模型
+class TeacherInviteItem(BaseModel):
+    invite_id: str
+    created_by: str
+    note: str = ""
+    created_at: str
+    expires_at: str
+    used_at: str | None = None
+    # 使用者用户名：仅用于展示，不暴露内部 user_id
+    used_by_name: str = ""
+    revoked_at: str | None = None
+    # 派生状态：unused 未使用 / used 已使用 / expired 已过期 / revoked 已吊销
+    status: Literal["unused", "used", "expired", "revoked"]
+    # 码指纹：哈希前 8 位，用于核对记录，不可反推明文邀请码
+    code_fingerprint: str = ""
+
+# 管理员创建账号请求：管理员可直接创建教师/学生账号，无需邀请码
+class AdminUserCreateRequest(BaseModel):
+    username: str = Field(min_length=3, max_length=32, pattern=r"^[A-Za-z0-9_]+$")
+    password: SecretStr = Field(min_length=8, max_length=128)
+    role: Literal["teacher", "student"] = "student"
+
+# 管理员修改账号全局身份
+class AdminUserRoleUpdateRequest(BaseModel):
+    role: Literal["teacher", "student"]
+
+# 管理员重置账号密码
+class AdminPasswordResetRequest(BaseModel):
+    new_password: SecretStr = Field(min_length=8, max_length=128)
+
+# 管理员禁用 / 启用账号
+class AdminUserDisabledRequest(BaseModel):
+    disabled: bool
 
 # 继承Pydantic基础模型，用于封装分流器（Supervisor）的输出结构化结果
 class SupervisorDecision(BaseModel):

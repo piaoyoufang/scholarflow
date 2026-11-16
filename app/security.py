@@ -119,6 +119,8 @@ class AuthStore:
     password_hash TEXT NOT NULL,
     -- 全局账号身份：teacher 教师 / student 学生；新库默认学生
     role TEXT NOT NULL DEFAULT 'student',
+    -- 是否禁用：1 禁用（禁止登录与鉴权）/ 0 正常
+    disabled INTEGER NOT NULL DEFAULT 0,
     -- 账号创建时间，默认取数据库当前时间
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -142,6 +144,32 @@ CREATE TABLE IF NOT EXISTS refresh_sessions (
 -- 为refresh_sessions表的user_id创建索引，按用户查询刷新会话时大幅提升查询速度
 CREATE INDEX IF NOT EXISTS idx_refresh_sessions_user_id
 ON refresh_sessions(user_id);
+
+-- 教师注册邀请码表：一次性随机码，数据库只存哈希，记录创建人、过期、使用与吊销状态
+CREATE TABLE IF NOT EXISTS teacher_invites (
+    -- 邀请码唯一记录标识
+    invite_id TEXT PRIMARY KEY,
+    -- 邀请码明文哈希，唯一；数据库永不存储明文码
+    code_hash TEXT NOT NULL UNIQUE,
+    -- 创建该邀请码的管理员用户名
+    created_by TEXT NOT NULL,
+    -- 备注，便于管理员区分用途
+    note TEXT NOT NULL DEFAULT '',
+    -- 创建时间
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    -- 过期时间，到期后不可使用
+    expires_at TEXT NOT NULL,
+    -- 使用时间，不为空表示已被核销
+    used_at TEXT,
+    -- 使用该邀请码注册的用户ID
+    used_by TEXT,
+    -- 吊销时间，不为空表示管理员已作废
+    revoked_at TEXT
+);
+
+-- 为teacher_invites表的创建人创建索引，管理员列表按创建人过滤时加速
+CREATE INDEX IF NOT EXISTS idx_teacher_invites_created_by
+ON teacher_invites(created_by);
                 """
             )
 
@@ -172,6 +200,10 @@ ON refresh_sessions(user_id);
                 # 旧账号原来默认拥有教师端能力，迁移时保留为teacher，避免已有演示账号权限突然丢失
                 connection.execute(
                     "ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'teacher'"
+                )
+            if "disabled" not in user_columns:
+                connection.execute(
+                    "ALTER TABLE users ADD COLUMN disabled INTEGER NOT NULL DEFAULT 0"
                 )
 
             connection.execute(
@@ -267,6 +299,260 @@ ON refresh_sessions(user_id);
             ).fetchone()
         return str(row["role"]) if row and row["role"] else "student"
 
+    # 根据用户ID查询原始用户名，用于管理员身份判断
+    def get_username(self, user_id: str) -> str | None:
+        with self._connect() as connection:
+            row = connection.execute(
+                "SELECT username FROM users WHERE user_id = ?",
+                (user_id,),
+            ).fetchone()
+        return str(row["username"]) if row else None
+
+    # 删除用户：管理员删除账号时，同时清理会话、刷新令牌与对话线程
+    def delete_user(self, user_id: str) -> None:
+        with self._connect() as connection:
+            connection.execute(
+                "DELETE FROM refresh_sessions WHERE user_id = ?",
+                (user_id,),
+            )
+            connection.execute(
+                "DELETE FROM sessions WHERE user_id = ?",
+                (user_id,),
+            )
+            connection.execute(
+                "DELETE FROM threads WHERE user_id = ?",
+                (user_id,),
+            )
+            connection.execute("DELETE FROM users WHERE user_id = ?", (user_id,))
+
+    # 管理员：查询全部账号基础信息
+    def list_users(self) -> list[dict]:
+        with self._connect() as connection:
+            rows = connection.execute(
+                "SELECT user_id, username, role, disabled, created_at "
+                "FROM users ORDER BY created_at ASC"
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+    # 管理员：查询单个账号基础信息
+    def get_user(self, user_id: str) -> dict | None:
+        with self._connect() as connection:
+            row = connection.execute(
+                "SELECT user_id, username, role, disabled, created_at "
+                "FROM users WHERE user_id = ?",
+                (user_id,),
+            ).fetchone()
+        return dict(row) if row else None
+
+    # 管理员：统计账号当前有效访问会话数（未注销且未过期）
+    def count_active_sessions(self, user_id: str) -> int:
+        now_text = self._now().isoformat()
+        with self._connect() as connection:
+            row = connection.execute(
+                "SELECT COUNT(*) AS count FROM sessions "
+                "WHERE user_id = ? AND revoked_at IS NULL AND expires_at > ?",
+                (user_id, now_text),
+            ).fetchone()
+        return int(row["count"]) if row else 0
+
+    # 管理员：修改账号全局身份（teacher / student）
+    def update_user_role(self, user_id: str, role: str) -> None:
+        if role not in {"teacher", "student"}:
+            raise ValueError("role must be teacher or student")
+        with self._connect() as connection:
+            updated = connection.execute(
+                "UPDATE users SET role = ? WHERE user_id = ?",
+                (role, user_id),
+            )
+        if updated.rowcount == 0:
+            raise LookupError("用户不存在")
+
+    # 管理员：重置密码并强制该账号所有会话下线
+    def reset_password(self, user_id: str, password: str) -> None:
+        if len(password) < 8:
+            raise ValueError("密码至少需要 8 个字符")
+        encoded = password_hash.hash(password)
+        now_text = self._now().isoformat()
+        with self._connect() as connection:
+            updated = connection.execute(
+                "UPDATE users SET password_hash = ? WHERE user_id = ?",
+                (encoded, user_id),
+            )
+            if updated.rowcount == 0:
+                raise LookupError("用户不存在")
+            connection.execute(
+                "UPDATE sessions SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL",
+                (now_text, user_id),
+            )
+            connection.execute(
+                "UPDATE refresh_sessions SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL",
+                (now_text, user_id),
+            )
+
+    # 管理员：禁用 / 启用账号；禁用时立即作废全部会话
+    def set_user_disabled(self, user_id: str, disabled: bool) -> None:
+        now_text = self._now().isoformat()
+        with self._connect() as connection:
+            updated = connection.execute(
+                "UPDATE users SET disabled = ? WHERE user_id = ?",
+                (1 if disabled else 0, user_id),
+            )
+            if updated.rowcount == 0:
+                raise LookupError("用户不存在")
+            if disabled:
+                connection.execute(
+                    "UPDATE sessions SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL",
+                    (now_text, user_id),
+                )
+                connection.execute(
+                    "UPDATE refresh_sessions SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL",
+                    (now_text, user_id),
+                )
+
+    # 管理员：强制下线，作废该账号全部访问与刷新令牌
+    def revoke_all_sessions(self, user_id: str) -> int:
+        now_text = self._now().isoformat()
+        with self._connect() as connection:
+            access_rows = connection.execute(
+                "UPDATE sessions SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL",
+                (now_text, user_id),
+            ).rowcount
+            refresh_rows = connection.execute(
+                "UPDATE refresh_sessions SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL",
+                (now_text, user_id),
+            ).rowcount
+        return int(access_rows + refresh_rows)
+
+    # 教师邀请码哈希：加固定前缀防止与Token哈希混用
+    @staticmethod
+    def _hash_invite_code(code: str) -> str:
+        return hashlib.sha256(f"teacher-invite:{code.strip().upper()}".encode("utf-8")).hexdigest()
+
+    # 创建一次性教师邀请码，返回 (邀请码ID, 明文码, 过期时间)，明文只在此刻返回一次
+    def create_teacher_invite(
+        self,
+        created_by: str,
+        expires_in_days: int = 7,
+        note: str = "",
+    ) -> tuple[str, str, str]:
+        if expires_in_days < 1 or expires_in_days > 90:
+            raise ValueError("有效期必须在 1 到 90 天之间")
+        # 生成 16 位大写十六进制随机码，格式 SF-XXXX-XXXX-XXXX-XXXX
+        raw = secrets.token_hex(8).upper()
+        code = f"SF-{raw[0:4]}-{raw[4:8]}-{raw[8:12]}-{raw[12:16]}"
+        invite_id = str(uuid4())
+        expires_at = (
+            self._now() + timedelta(days=expires_in_days)
+        ).isoformat()
+        with self._connect() as connection:
+            connection.execute(
+                "INSERT INTO teacher_invites(invite_id, code_hash, created_by, note, expires_at) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (invite_id, self._hash_invite_code(code), created_by, note.strip(), expires_at),
+            )
+        return invite_id, code, expires_at
+
+    # 核销邀请码：原子更新，仅未使用、未吊销、未过期的码可核销成功
+    def consume_teacher_invite(self, code: str, user_id: str) -> bool:
+        if not code.strip():
+            return False
+        now_text = self._now().isoformat()
+        with self._connect() as connection:
+            updated = connection.execute(
+                "UPDATE teacher_invites SET used_at = ?, used_by = ? "
+                "WHERE code_hash = ? AND used_at IS NULL AND revoked_at IS NULL "
+                "AND expires_at > ?",
+                (now_text, user_id, self._hash_invite_code(code), now_text),
+            )
+        return updated.rowcount == 1
+
+    # 查询邀请码列表，附带派生状态：unused/used/expired/revoked
+    def list_teacher_invites(self, created_by: str | None = None) -> list[dict]:
+        now_text = self._now().isoformat()
+        sql = (
+            "SELECT invite_id, code_hash, created_by, note, created_at, expires_at, "
+            "used_at, used_by, revoked_at FROM teacher_invites "
+        )
+        params: tuple = ()
+        if created_by is not None:
+            sql += "WHERE created_by = ? "
+            params = (created_by,)
+        sql += "ORDER BY created_at DESC"
+        with self._connect() as connection:
+            rows = connection.execute(sql, params).fetchall()
+            # 使用情况只对外展示用户名，内部 user_id 不返回给前端
+            used_ids = sorted({row["used_by"] for row in rows if row["used_by"]})
+            usernames: dict[str, str] = {}
+            if used_ids:
+                placeholders = ",".join("?" for _ in used_ids)
+                for user_row in connection.execute(
+                    f"SELECT user_id, username FROM users WHERE user_id IN ({placeholders})",
+                    used_ids,
+                ):
+                    usernames[user_row["user_id"]] = user_row["username"]
+        invites = []
+        for row in rows:
+            if row["revoked_at"]:
+                state = "revoked"
+            elif row["used_at"]:
+                state = "used"
+            elif row["expires_at"] <= now_text:
+                state = "expired"
+            else:
+                state = "unused"
+            invites.append(
+                {
+                    "invite_id": row["invite_id"],
+                    "created_by": row["created_by"],
+                    "note": row["note"],
+                    "created_at": row["created_at"],
+                    "expires_at": row["expires_at"],
+                    "used_at": row["used_at"],
+                    "used_by_name": usernames.get(row["used_by"], "") if row["used_by"] else "",
+                    "revoked_at": row["revoked_at"],
+                    "status": state,
+                    # 码指纹：哈希前 8 位，仅用于人工核对是哪张码，无法反推明文
+                    "code_fingerprint": (row["code_hash"] or "")[:8].upper(),
+                }
+            )
+        return invites
+
+    # 重新签发邀请码：同一记录换新码、旧码立即失效，备注与台账保留
+    def reissue_teacher_invite(
+        self,
+        invite_id: str,
+        expires_in_days: int = 7,
+    ) -> tuple[str, str, str] | None:
+        if expires_in_days < 1 or expires_in_days > 90:
+            raise ValueError("有效期必须在 1 到 90 天之间")
+        raw = secrets.token_hex(8).upper()
+        code = f"SF-{raw[0:4]}-{raw[4:8]}-{raw[8:12]}-{raw[12:16]}"
+        expires_at = (self._now() + timedelta(days=expires_in_days)).isoformat()
+        with self._connect() as connection:
+            updated = connection.execute(
+                "UPDATE teacher_invites SET code_hash = ?, expires_at = ? "
+                "WHERE invite_id = ? AND used_at IS NULL AND revoked_at IS NULL",
+                (self._hash_invite_code(code), expires_at, invite_id),
+            )
+            if updated.rowcount != 1:
+                return None
+            row = connection.execute(
+                "SELECT note FROM teacher_invites WHERE invite_id = ?",
+                (invite_id,),
+            ).fetchone()
+        return code, expires_at, (row["note"] if row else "")
+
+    # 吊销邀请码：仅未使用的码可吊销，返回是否成功
+    def revoke_teacher_invite(self, invite_id: str) -> bool:
+        now_text = self._now().isoformat()
+        with self._connect() as connection:
+            updated = connection.execute(
+                "UPDATE teacher_invites SET revoked_at = ? "
+                "WHERE invite_id = ? AND used_at IS NULL AND revoked_at IS NULL",
+                (now_text, invite_id),
+            )
+        return updated.rowcount == 1
+
     def verify_user(self, username: str, password: str) -> str | None:
         # 标准化输入的用户名，和数据库存储格式统一
         normalized = self._normalize_username(username)
@@ -274,12 +560,15 @@ ON refresh_sessions(user_id);
         with self._connect() as connection:
             # 根据标准化用户名查询用户ID与存储的密码哈希
             row = connection.execute(
-                "SELECT user_id, password_hash FROM users WHERE username = ?",
+                "SELECT user_id, password_hash, disabled FROM users WHERE username = ?",
                 (normalized,),
             ).fetchone()
         # 两种失败场景：1.无此用户 2.密码哈希校验不匹配
         if not row or not password_hash.verify(password, row["password_hash"]):
             return None
+        # 密码正确但账号已被管理员禁用，抛出权限异常提示前端
+        if row["disabled"]:
+            raise PermissionError("账号已被禁用，请联系管理员")
         # 账号密码校验全部通过，返回用户ID
         return str(row["user_id"])
 
@@ -351,6 +640,13 @@ ON refresh_sessions(user_id);
 
             # 取出绑定的用户ID，刷新前后用户保持不变
             user_id = str(row["user_id"])
+            # 账号被管理员禁用后不允许继续刷新令牌
+            disabled_row = connection.execute(
+                "SELECT disabled FROM users WHERE user_id = ?",
+                (user_id,),
+            ).fetchone()
+            if disabled_row and disabled_row["disabled"]:
+                raise PermissionError("账号已被禁用，请联系管理员")
             # 生成全新短期access_token及对应过期信息
             access_token, access_hash, access_expires_at = self._new_token_values(user_id)
             # 生成全新长效refresh_token明文
@@ -425,13 +721,14 @@ ON refresh_sessions(user_id);
         with self._connect() as connection:
             # 根据哈希查询该会话完整信息
             row = connection.execute(
-                "SELECT user_id, expires_at, revoked_at "
-                "FROM sessions WHERE token_hash = ?",
+                "SELECT s.user_id, s.expires_at, s.revoked_at, u.disabled "
+                "FROM sessions s LEFT JOIN users u ON u.user_id = s.user_id "
+                "WHERE s.token_hash = ?",
                 (token_hash,),
             ).fetchone()
 
-        # 1.无记录 2.已手动注销 3.无过期时间标记，任意一种直接鉴权失败
-        if not row or row["revoked_at"] or not row["expires_at"]:
+        # 1.无记录 2.已手动注销 3.无过期时间标记 4.账号已禁用，任意一种直接鉴权失败
+        if not row or row["revoked_at"] or not row["expires_at"] or row["disabled"]:
             return None
 
         # 将数据库存储的ISO时间字符串转为UTC时间对象

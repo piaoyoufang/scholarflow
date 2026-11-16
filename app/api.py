@@ -23,6 +23,7 @@ from app.observability import (
 from app.rate_limit import global_rate_limiter
 # 按业务域拆分的路由模块，挂载顺序即 /docs 展示顺序
 from app.routers import (
+    admin,
     agents_tools,
     analytics,
     ask,
@@ -47,6 +48,7 @@ app = FastAPI(
     openapi_tags=[
         {"name": "系统", "description": "服务首页、健康检查、存活检查和就绪检查。"},
         {"name": "认证", "description": "注册、登录、刷新令牌和退出登录。"},
+        {"name": "管理员", "description": "教师邀请码、账号管理、课程管理与全平台统计。"},
         {"name": "会话", "description": "会话、线程和历史对话记录管理。"},
         {"name": "课程管理", "description": "课程创建、课程查询和课程成员管理。"},
         {"name": "文档管理", "description": "课程文档上传、删除、重新入库和文档列表查询。"},
@@ -197,6 +199,7 @@ async def observe_http_request(request: Request, call_next):
 # 挂载各业务域 router：顺序与原 openapi_tags 一致，即 /docs 里的展示顺序
 app.include_router(system.router)          # 系统 + 运行监控
 app.include_router(auth.router)            # 认证
+app.include_router(admin.router)           # 管理员
 app.include_router(threads.router)         # 会话
 app.include_router(courses.router)         # 课程管理
 app.include_router(documents.router)       # 文档管理

@@ -3,6 +3,8 @@
 from fastapi import Depends, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
+from app.config import settings
+from app.courses.store import course_store
 from app.security import auth_store
 
 # 实例化Bearer令牌解析器；auto_error=False 关闭内置自动报错，自定义鉴权异常提示
@@ -38,6 +40,49 @@ def current_session(
 def require_teacher_account(user_id: str) -> None:
     if auth_store.get_user_role(user_id) != "teacher":
         raise HTTPException(status_code=403, detail="仅教师账号可操作")
+
+
+# 判断用户名是否在管理员名单（ADMIN_USERNAMES，逗号分隔，大小写不敏感）
+def is_admin_user(user_id: str) -> bool:
+    username = auth_store.get_username(user_id)
+    if not username:
+        return False
+    allowed = {
+        name.strip().casefold()
+        for name in settings.admin_usernames.split(",")
+        if name.strip()
+    }
+    return username.casefold() in allowed
+
+
+# 管理员鉴权依赖：仅管理员可访问管理接口
+def require_admin(
+    session: tuple[str, str] = Depends(current_session),
+) -> tuple[str, str]:
+    user_id, token = session
+    if not is_admin_user(user_id):
+        raise HTTPException(status_code=403, detail="仅管理员可操作")
+    return user_id, token
+
+
+# 课程访问校验：管理员可进入任意课程查看并试用问答；其他用户必须是课程成员
+def ensure_course_access(course_id: str, user_id: str) -> None:
+    if not course_store.get_course(course_id):
+        raise LookupError("课程不存在")
+    if is_admin_user(user_id):
+        return
+    if not course_store.get_member_role(course_id, user_id):
+        raise PermissionError("你不是该课程成员，无权访问")
+
+
+# 教师只读页面校验（看板、问答分析、检索可视化、成员列表）：课程教师或管理员可查看
+def ensure_course_viewer(course_id: str, user_id: str) -> None:
+    if not course_store.get_course(course_id):
+        raise LookupError("课程不存在")
+    if is_admin_user(user_id):
+        return
+    if course_store.get_member_role(course_id, user_id) != "teacher":
+        raise PermissionError("仅课程教师可查看")
 
 
 def require_owner(user_id: str, thread_id: str) -> None:

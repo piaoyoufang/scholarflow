@@ -34,6 +34,8 @@ class Settings(BaseSettings):
     api_base_url: str = "http://127.0.0.1:8000"
     access_token_ttl_minutes: int = 15
     refresh_token_ttl_days: int = 30
+    # 管理员用户名列表，逗号分隔；管理员可管理账号、课程与教师注册邀请码
+    admin_usernames: str = ""
     log_level: str = "INFO"
     log_dir: str = "./logs"
     slow_request_ms: int = 3000

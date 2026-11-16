@@ -388,12 +388,14 @@ async function register() {
 .auth-shell {
   position: relative;
   z-index: 2;
-  width: min(1400px, 100%);
+  width: min(1180px, 100%);
+  margin: 0 auto;
   min-height: calc(100dvh - clamp(40px, 8vh, 96px) - clamp(28px, 5vh, 64px));
   display: grid;
-  grid-template-columns: minmax(0, 1.85fr) minmax(300px, 1fr);
+  grid-template-columns: minmax(0, 1.35fr) minmax(340px, 0.8fr);
   align-items: center;
-  gap: clamp(40px, 5vw, 96px);
+  justify-content: center;
+  gap: clamp(32px, 3.5vw, 56px);
 }
 
 .showcase { display: flex; flex-direction: column; align-self: start; }
@@ -421,9 +423,9 @@ async function register() {
 }
 
 h1 {
-  margin: 20px 0 12px;
-  font-size: clamp(40px, 4.2vw, 60px);
-  line-height: 1.14;
+  margin: 16px 0 10px;
+  font-size: clamp(36px, 3.6vw, 52px);
+  line-height: 1.12;
   letter-spacing: -0.045em;
   font-weight: 800;
   background: linear-gradient(180deg, #ffffff 10%, #ecdfff 62%, #c4b5fd 100%);
@@ -440,11 +442,11 @@ h1 {
 }
 
 .subtitle {
-  max-width: 560px;
+  max-width: 520px;
   margin: 0;
   color: rgba(255, 255, 255, 0.7);
-  font-size: 15px;
-  line-height: 1.85;
+  font-size: 14.5px;
+  line-height: 1.75;
   animation: fadeUp 0.8s 0.2s both;
 }
 
@@ -453,8 +455,8 @@ h1 {
   position: relative;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
-  margin-top: clamp(22px, 2.6vw, 32px);
+  gap: 8px;
+  margin-top: clamp(18px, 2vw, 24px);
   padding: 4px 0;
 }
 
@@ -481,8 +483,8 @@ h1 {
   z-index: 1;
   display: flex;
   align-items: flex-start;
-  gap: 10px;
-  padding: 12px 14px;
+  gap: 9px;
+  padding: 11px 12px;
   border-radius: 12px;
   background: rgba(46, 38, 88, 0.3);
   border: 1px solid rgba(255, 255, 255, 0.14);
@@ -530,8 +532,8 @@ h1 {
 .stat-strip {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  margin-top: clamp(16px, 2vw, 24px);
-  padding: 8px 6px;
+  margin-top: clamp(12px, 1.6vw, 18px);
+  padding: 7px 5px;
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.035);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
@@ -575,9 +577,9 @@ h1 {
   position: relative;
   justify-self: center;
   align-self: center;
-  width: min(100%, 340px);
-  padding: clamp(22px, 2vw, 26px);
-  border-radius: 12px;
+  width: min(100%, 404px);
+  padding: clamp(28px, 2.4vw, 36px);
+  border-radius: 16px;
   background: linear-gradient(155deg, rgba(58, 47, 106, 0.36), rgba(26, 21, 52, 0.28));
   border: 1px solid rgba(255, 255, 255, 0.1);
   box-shadow: 0 40px 90px -34px rgba(0, 0, 0, 0.92), 0 0 46px -22px rgba(139, 92, 246, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.09);
@@ -606,29 +608,29 @@ h1 {
 .panel-inner { position: relative; z-index: 1; }
 
 .panel-inner h2 {
-  margin: 0 0 6px;
-  font-size: 24px;
+  margin: 0 0 8px;
+  font-size: 27px;
   font-weight: 700;
   letter-spacing: -0.02em;
   color: #fff;
 }
 .panel-desc {
-  margin: 0 0 18px;
-  font-size: 12.5px;
+  margin: 0 0 22px;
+  font-size: 13px;
   line-height: 1.65;
   color: rgba(255, 255, 255, 0.68);
 }
 
-.auth-form :deep(.el-form-item) { margin-bottom: 14px; }
-.auth-form :deep(.el-input__wrapper) { min-height: 44px; }
+.auth-form :deep(.el-form-item) { margin-bottom: 16px; }
+.auth-form :deep(.el-input__wrapper) { min-height: 48px; }
 .auth-form :deep(.el-form-item__label) {
-  font-size: 13px;
+  font-size: 13.5px;
   color: rgba(255, 255, 255, 0.74) !important;
 }
 .auth-form :deep(.el-input__inner::placeholder) { color: rgba(255, 255, 255, 0.48) !important; }
 .auth-form :deep(.el-input__prefix),
 .auth-form :deep(.el-input__suffix) { color: rgba(255, 255, 255, 0.62) !important; }
-.auth-form :deep(.el-form-item:last-of-type) { margin-bottom: 18px; }
+.auth-form :deep(.el-form-item:last-of-type) { margin-bottom: 22px; }
 
 .pwd-toggle { cursor: pointer; transition: all 0.2s ease; }
 .pwd-toggle:hover { color: #e9d5ff; }
@@ -636,9 +638,9 @@ h1 {
 
 .submit-btn {
   width: 100%;
-  height: 44px;
-  min-height: 44px;
-  font-size: 15px;
+  height: 48px;
+  min-height: 48px;
+  font-size: 15.5px;
   letter-spacing: 0.02em;
 }
 
@@ -647,8 +649,8 @@ h1 {
   align-items: center;
   justify-content: center;
   gap: 12px;
-  margin-top: 14px;
-  font-size: 12.5px;
+  margin-top: 18px;
+  font-size: 13px;
   color: rgba(255, 255, 255, 0.62);
 }
 .panel-links button {

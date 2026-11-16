@@ -7,6 +7,18 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from app.config import settings
 from app.models import embeddings
 
+# DashScope 兼容接口单次最多接受 10 条文本，超出会返回 400 InvalidParameter
+EMBED_BATCH_SIZE = 10
+
+
+def _embed_documents(texts: list[str]) -> list[list[float]]:
+    """分批向量化：按接口上限切分文本，避免一次性提交过多内容被拒绝。"""
+    embedder = embeddings()
+    vectors: list[list[float]] = []
+    for start in range(0, len(texts), EMBED_BATCH_SIZE):
+        vectors.extend(embedder.embed_documents(texts[start:start + EMBED_BATCH_SIZE]))
+    return vectors
+
 
 def load_file(path: str, course_id: str | None = None, source_id: str | None = None):
     """?? PDF / Markdown / TXT??? LangChain Document?????????????"""
@@ -44,7 +56,7 @@ def ingest(path: str, course_id: str | None = None, source_id: str | None = None
         from app.vectorstores.qdrant_store import delete_by_source_id, upsert_documents
 
         delete_by_source_id(real_source_id)
-        vectors = embeddings().embed_documents([doc.page_content for doc in chunks])
+        vectors = _embed_documents([doc.page_content for doc in chunks])
         upsert_documents(chunks, vectors=vectors, ids=ids)
     else:
         from langchain_chroma import Chroma
@@ -55,5 +67,7 @@ def ingest(path: str, course_id: str | None = None, source_id: str | None = None
             persist_directory=settings.vector_db_dir,
         )
         db.delete(where={"source_id": real_source_id})
-        db.add_documents(chunks, ids=ids)
+        # 同样按批写入，避免底层一次请求超过接口的 10 条上限
+        for start in range(0, len(chunks), EMBED_BATCH_SIZE):
+            db.add_documents(chunks[start:start + EMBED_BATCH_SIZE], ids=ids[start:start + EMBED_BATCH_SIZE])
     return len(chunks)

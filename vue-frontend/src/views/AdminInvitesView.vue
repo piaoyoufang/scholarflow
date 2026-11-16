@@ -290,19 +290,19 @@ onBeforeUnmount(() => window.removeEventListener('beforeunload', handleBeforeUnl
 <style scoped>
 .admin-page { max-width: 1180px; margin: 0 auto; }
 .breadcrumb { margin-bottom: 18px; }
-.breadcrumb :deep(.el-breadcrumb__inner) { color: rgba(255,255,255,.5); font-weight: 500; font-size: 12px; }
+.breadcrumb :deep(.el-breadcrumb__inner) { color: var(--muted); font-weight: 500; font-size: 12px; }
 .create-card { margin-bottom: 24px; }
-.card-header { display: flex; align-items: center; justify-content: space-between; font-weight: 600; color: #fff; font-size: 14px; }
+.card-header { display: flex; align-items: center; justify-content: space-between; font-weight: 600; color: var(--text); font-size: 14px; }
 .form-actions { display: flex; justify-content: flex-end; margin-top: 2px; }
 .form-actions :deep(.el-button) { min-width: 120px; }
-.created-code { margin-top: 6px; padding: 16px; border-radius: 14px; border: 1px solid rgba(240,171,252,.45); background: rgba(240,171,252,.08); }
-.created-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: #fbcfe8; font-size: 13px; font-weight: 600; }
+.created-code { margin-top: 6px; padding: 16px; border-radius: 14px; border: 1px solid rgba(124,58,237,.24); background: rgba(124,58,237,.06); }
+.created-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: #6d28d9; font-size: 13px; font-weight: 600; }
 .created-row { display: flex; align-items: center; gap: 12px; margin: 12px 0 8px; }
 .created-actions { display: flex; gap: 8px; }
-.fingerprint { font-family: "JetBrains Mono", Consolas, monospace; font-size: 12px; letter-spacing: .04em; color: rgba(255,255,255,.55); }
-.created-row strong { color: #fff; font-size: 20px; letter-spacing: .1em; word-break: break-all; }
-.created-foot { color: rgba(255,255,255,.55); font-size: 12px; }
-.toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: #fff; }
+.fingerprint { font-family: "JetBrains Mono", Consolas, monospace; font-size: 12px; letter-spacing: .04em; color: var(--muted); }
+.created-row strong { color: var(--text); font-size: 20px; letter-spacing: .1em; word-break: break-all; }
+.created-foot { color: var(--muted); font-size: 12px; }
+.toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: var(--text); }
 .toolbar h2 { margin: 0; font-size: 20px; font-weight: 900; }
 .table-card { margin-top: 14px; }
 /* 宽表在窄屏下横向滚动，避免列被压缩挤在一起 */

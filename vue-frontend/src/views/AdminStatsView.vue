@@ -125,17 +125,17 @@ onMounted(loadStats)
 <style scoped>
 .admin-page { max-width: 1180px; margin: 0 auto; }
 .breadcrumb { margin-bottom: 18px; }
-.breadcrumb :deep(.el-breadcrumb__inner) { color: rgba(255,255,255,.5); font-weight: 500; font-size: 12px; }
+.breadcrumb :deep(.el-breadcrumb__inner) { color: var(--muted); font-weight: 500; font-size: 12px; }
 .page-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
 .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 14px; margin: 20px 0 8px; }
 .stat-card { min-height: 140px; }
-.stat-label { color: rgba(255,255,255,.6); font-size: 13px; font-weight: 500; }
-.stat-value { color: #fff; font-size: 34px; font-weight: 900; line-height: 1.2; margin: 8px 0 6px; letter-spacing: -.02em; }
-.stat-foot { color: rgba(255,255,255,.5); font-size: 12px; line-height: 1.6; }
-.toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: #fff; margin-top: 20px; }
+.stat-label { color: var(--muted); font-size: 13px; font-weight: 500; }
+.stat-value { color: var(--text); font-size: 34px; font-weight: 900; line-height: 1.2; margin: 8px 0 6px; letter-spacing: -.02em; }
+.stat-foot { color: var(--muted); font-size: 12px; line-height: 1.6; }
+.toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: var(--text); margin-top: 20px; }
 .toolbar.second { margin-top: 26px; }
 .toolbar h2 { margin: 0; font-size: 20px; font-weight: 900; }
-.toolbar-tip { color: rgba(255,255,255,.5); font-size: 12px; }
+.toolbar-tip { color: var(--muted); font-size: 12px; }
 .table-card { margin-top: 12px; }
 @media (max-width: 768px) {
   .admin-page { max-width: 100%; margin: 0; }

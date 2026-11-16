@@ -1,4 +1,4 @@
-"""问答域路由：课程问答（含流式）、全局问答、问答反馈、问答事件处理——从 api.py 原样搬入"""
+﻿"""问答域路由：课程问答（含流式）、全局问答、问答反馈、问答事件处理——从 api.py 原样搬入"""
 from json import dumps as json_dumps
 from time import perf_counter
 
@@ -9,7 +9,7 @@ from app.analytics.qa_events import qa_event_store
 from app.cache import delete_prefix
 from app.config import settings
 from app.courses.store import course_store
-from app.deps import current_session
+from app.deps import current_session, ensure_course_access
 from app.feedback.store import feedback_store
 from app.graph.builder import get_async_memory_workflow, memory_workflow
 from app.observability import get_logger
@@ -37,7 +37,7 @@ def ask_course(
     try:
         # 权限校验：校验该用户是否有权访问这个课程
         # 内部逻辑：用户要么是课程老师，要么是课程学生；无权限直接抛异常
-        course_store.require_course_access(course_id, user_id)
+        ensure_course_access(course_id, user_id)
     except LookupError as exc:
         # 捕获异常：course_id不存在，返回404
         # from exc：保留原始异常堆栈，方便后台日志排查
@@ -143,7 +143,7 @@ async def ask_course_stream(
 
     # 权限与线程归属校验：与 ask_course 完全相同（流式也要在响应头发出前拦截越权请求）
     try:
-        course_store.require_course_access(course_id, user_id)
+        ensure_course_access(course_id, user_id)
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except PermissionError as exc:
@@ -284,7 +284,7 @@ def create_feedback(
 ):
     user_id, _ = session
     try:
-        course_store.require_course_access(course_id, user_id)
+        ensure_course_access(course_id, user_id)
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except PermissionError as exc:

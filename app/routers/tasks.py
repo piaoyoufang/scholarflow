@@ -1,8 +1,8 @@
-"""任务中心域路由：课程任务列表、任务详情——从 api.py 原样搬入"""
+﻿"""任务中心域路由：课程任务列表、任务详情——从 api.py 原样搬入"""
 from fastapi import APIRouter, Depends, HTTPException
 
 from app.courses.store import course_store
-from app.deps import current_session
+from app.deps import current_session, ensure_course_access
 from app.tasks.store import task_store
 
 router = APIRouter()
@@ -15,7 +15,7 @@ def list_course_tasks(course_id: str, session: tuple[str, str] = Depends(current
     """
     user_id, _ = session
     try:
-        course_store.require_course_access(course_id, user_id)
+        ensure_course_access(course_id, user_id)
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except PermissionError as exc:

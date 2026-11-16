@@ -1,10 +1,10 @@
-"""分析看板域路由：课程看板、高频/无引用/低质量/负反馈问题——从 api.py 原样搬入"""
+﻿"""分析看板域路由：课程看板、高频/无引用/低质量/负反馈问题——从 api.py 原样搬入"""
 from fastapi import APIRouter, Depends, HTTPException
 
 from app.analytics.qa_events import qa_event_store
 from app.cache import get_json, set_json
 from app.courses.store import course_store
-from app.deps import current_session
+from app.deps import current_session, ensure_course_viewer
 from app.feedback.store import feedback_store
 from app.knowledge.library import knowledge_library
 
@@ -14,7 +14,7 @@ router = APIRouter()
 def course_dashboard(course_id: str, session: tuple[str, str] = Depends(current_session)):
     user_id, _ = session
     try:
-        course_store.require_course_teacher(course_id, user_id)
+        ensure_course_viewer(course_id, user_id)
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except PermissionError as exc:
@@ -42,7 +42,7 @@ def course_dashboard(course_id: str, session: tuple[str, str] = Depends(current_
 def top_questions(course_id: str, session: tuple[str, str] = Depends(current_session)):
     user_id, _ = session
     try:
-        course_store.require_course_teacher(course_id, user_id)
+        ensure_course_viewer(course_id, user_id)
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except PermissionError as exc:
@@ -58,7 +58,7 @@ def top_questions(course_id: str, session: tuple[str, str] = Depends(current_ses
 def no_citation_questions(course_id: str, session: tuple[str, str] = Depends(current_session)):
     user_id, _ = session
     try:
-        course_store.require_course_teacher(course_id, user_id)
+        ensure_course_viewer(course_id, user_id)
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except PermissionError as exc:
@@ -74,7 +74,7 @@ def no_citation_questions(course_id: str, session: tuple[str, str] = Depends(cur
 def low_quality_questions(course_id: str, session: tuple[str, str] = Depends(current_session)):
     user_id, _ = session
     try:
-        course_store.require_course_teacher(course_id, user_id)
+        ensure_course_viewer(course_id, user_id)
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except PermissionError as exc:
@@ -92,7 +92,7 @@ def low_quality_questions(course_id: str, session: tuple[str, str] = Depends(cur
 def down_feedback_questions(course_id: str, session: tuple[str, str] = Depends(current_session)):
     user_id, _ = session
     try:
-        course_store.require_course_teacher(course_id, user_id)
+        ensure_course_viewer(course_id, user_id)
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except PermissionError as exc:

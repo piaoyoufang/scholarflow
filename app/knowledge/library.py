@@ -183,4 +183,38 @@ class KnowledgeLibrary:
         return data
 
 
+    def global_summary(self) -> dict:
+        """管理员数据统计：全平台文档状态汇总。"""
+        if self.use_mysql:
+            rows = fetch_all("SELECT status, COUNT(*) AS count FROM documents GROUP BY status")
+        else:
+            with self.connect() as conn:
+                rows = conn.execute(
+                    "SELECT status, COUNT(*) AS count FROM documents GROUP BY status"
+                ).fetchall()
+                rows = [dict(row) for row in rows]
+        data = {"document_count": 0, "success_document_count": 0,
+                "failed_document_count": 0, "processing_document_count": 0}
+        for row in rows:
+            count = int(row["count"])
+            data["document_count"] += count
+            if row["status"] == "success":
+                data["success_document_count"] += count
+            elif row["status"] == "failed":
+                data["failed_document_count"] += count
+            elif row["status"] == "processing":
+                data["processing_document_count"] += count
+        return data
+
+    def delete_course_documents(self, course_id: str) -> list[dict]:
+        """删除课程下全部文档记录，返回被删除的文档（用于清理文件与向量）。"""
+        documents = self.list_course_documents(course_id)
+        if self.use_mysql:
+            execute("DELETE FROM documents WHERE course_id = :course_id", {"course_id": course_id})
+        else:
+            with self.connect() as conn:
+                conn.execute("DELETE FROM documents WHERE course_id = ?", (course_id,))
+        return documents
+
+
 knowledge_library = KnowledgeLibrary()

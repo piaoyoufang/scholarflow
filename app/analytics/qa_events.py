@@ -81,23 +81,27 @@ class QAEventStore:
             if "processed_at" not in existing_columns:
                 conn.execute("ALTER TABLE qa_events ADD COLUMN processed_at TEXT NOT NULL DEFAULT ''")
 
-    def update_process_status(self, event_id: str, status: str, note: str = "") -> None:
+    def update_process_status(
+        self, event_id: str, status: str, note: str = "", *, course_id: str
+    ) -> None:
         if status not in {"pending", "processing", "resolved", "ignored"}:
             raise ValueError("处理状态只能是 pending、processing、resolved 或 ignored")
         if self.use_mysql:
             rowcount = execute("""
                 UPDATE qa_events SET process_status = :status, process_note = :note, processed_at = :processed_at
-                WHERE event_id = :event_id
-            """, {"status": status, "note": note, "processed_at": utc_now(), "event_id": event_id})
+                WHERE event_id = :event_id AND course_id = :course_id
+            """, {"status": status, "note": note, "processed_at": utc_now(),
+                  "event_id": event_id, "course_id": course_id})
             if rowcount == 0:
-                raise LookupError("问答事件不存在")
+                raise LookupError("问答事件不存在或不属于当前课程")
             return
         with self.connect() as conn:
             cursor = conn.execute("""
-                UPDATE qa_events SET process_status = ?, process_note = ?, processed_at = ? WHERE event_id = ?
-            """, (status, note, utc_now(), event_id))
+                UPDATE qa_events SET process_status = ?, process_note = ?, processed_at = ?
+                WHERE event_id = ? AND course_id = ?
+            """, (status, note, utc_now(), event_id, course_id))
             if cursor.rowcount == 0:
-                raise LookupError("问答事件不存在")
+                raise LookupError("问答事件不存在或不属于当前课程")
 
     def dashboard_summary(self, course_id: str) -> dict:
         if self.use_mysql:
@@ -195,6 +199,60 @@ class QAEventStore:
                 ORDER BY created_at DESC LIMIT ?
             """, (course_id, limit)).fetchall()
         return [dict(row) for row in rows]
+
+
+    def global_summary(self) -> dict:
+        """管理员数据统计：全平台问答质量汇总。"""
+        if self.use_mysql:
+            row = fetch_one("""
+                SELECT COUNT(*) AS total,
+                       SUM(CASE WHEN citation_count = 0 THEN 1 ELSE 0 END) AS no_citation,
+                       SUM(CASE WHEN pass_result = 0 OR quality_score < 60 OR error != '' THEN 1 ELSE 0 END) AS low_quality
+                FROM qa_events
+            """)
+        else:
+            with self.connect() as conn:
+                row = conn.execute("""
+                    SELECT COUNT(*) AS total,
+                           SUM(CASE WHEN citation_count = 0 THEN 1 ELSE 0 END) AS no_citation,
+                           SUM(CASE WHEN pass_result = 0 OR quality_score < 60 OR error != '' THEN 1 ELSE 0 END) AS low_quality
+                    FROM qa_events
+                """).fetchone()
+                row = dict(row) if row else None
+        total = int(row["total"]) if row else 0
+        no_citation = int(row["no_citation"] or 0) if row else 0
+        low_quality = int(row["low_quality"] or 0) if row else 0
+        return {
+            "qa_count": total,
+            "no_citation_count": no_citation,
+            "low_quality_count": low_quality,
+            "citation_rate": 0 if total == 0 else round((total - no_citation) / total, 4),
+        }
+
+    def global_top_questions(self, limit: int = 10) -> list[dict]:
+        if self.use_mysql:
+            rows = fetch_all("""
+                SELECT question, COUNT(*) AS count FROM qa_events
+                GROUP BY question ORDER BY count DESC LIMIT :limit
+            """, {"limit": limit})
+        else:
+            with self.connect() as conn:
+                rows = conn.execute("""
+                    SELECT question, COUNT(*) AS count FROM qa_events
+                    GROUP BY question ORDER BY count DESC LIMIT ?
+                """, (limit,)).fetchall()
+                rows = [dict(row) for row in rows]
+        return [{"question": row["question"], "count": int(row["count"])} for row in rows]
+
+    def delete_course_events(self, course_id: str) -> int:
+        if self.use_mysql:
+            return execute(
+                "DELETE FROM qa_events WHERE course_id = :course_id",
+                {"course_id": course_id},
+            )
+        with self.connect() as conn:
+            cursor = conn.execute("DELETE FROM qa_events WHERE course_id = ?", (course_id,))
+        return int(cursor.rowcount)
 
 
 qa_event_store = QAEventStore()

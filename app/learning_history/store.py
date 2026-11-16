@@ -297,4 +297,16 @@ class LearningHistoryStore:
         return result.rowcount > 0
 
 
+    def delete_course_history(self, course_id: str) -> int:
+        """管理员删除课程时，级联清理该课程的学习计划与题单记录。"""
+        if self.use_mysql:
+            plans = execute("DELETE FROM learning_plan_history WHERE course_id = :course_id", {"course_id": course_id})
+            quizzes = execute("DELETE FROM quiz_history WHERE course_id = :course_id", {"course_id": course_id})
+            return plans + quizzes
+        with self.connect() as conn:
+            plans = conn.execute("DELETE FROM learning_plan_history WHERE course_id = ?", (course_id,)).rowcount
+            quizzes = conn.execute("DELETE FROM quiz_history WHERE course_id = ?", (course_id,)).rowcount
+        return int(plans + quizzes)
+
+
 learning_history_store = LearningHistoryStore()

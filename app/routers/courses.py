@@ -3,7 +3,13 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from app.cache import delete_prefix, get_json, set_json
 from app.courses.store import course_store
-from app.deps import current_session, require_teacher_account
+from app.deps import (
+    current_session,
+    ensure_course_access,
+    ensure_course_viewer,
+    is_admin_user,
+    require_teacher_account,
+)
 from app.schemas import CourseCreateRequest, CourseJoinRequest, CourseMemberAddRequest
 
 router = APIRouter()
@@ -26,6 +32,14 @@ def create_course(
 @router.get("/courses", tags=["课程管理"], summary="获取课程列表")
 def list_courses(session: tuple[str, str] = Depends(current_session)):
     user_id, _ = session
+    # 管理员不参与课程成员关系，直接返回全平台课程并标记为管理员视角，便于进入任意课程查看
+    if is_admin_user(user_id):
+        return {
+            "courses": [
+                {**course, "role_in_course": "admin"}
+                for course in course_store.list_all_courses()
+            ]
+        }
     cache_key = f"user:{user_id}:courses"
     cached = get_json(cache_key)
     if cached is not None:
@@ -58,7 +72,7 @@ def join_course_by_invite_code(
 def get_course(course_id: str, session: tuple[str, str] = Depends(current_session)):
     user_id, _ = session
     try:
-        course_store.require_course_access(course_id, user_id)
+        ensure_course_access(course_id, user_id)
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except PermissionError as exc:
@@ -91,8 +105,8 @@ def add_course_member(
 def list_course_members(course_id: str, session: tuple[str, str] = Depends(current_session)):
     user_id, _ = session
     try:
-        # 权限校验：只有课程老师才可以查看成员列表
-        course_store.require_course_teacher(course_id, user_id)
+        # 权限校验：课程教师或管理员可查看成员列表
+        ensure_course_viewer(course_id, user_id)
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except PermissionError as exc:

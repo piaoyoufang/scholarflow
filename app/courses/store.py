@@ -179,6 +179,75 @@ class CourseStore:
                 """, (course_id, owner_teacher_id, "teacher", now))
         return CourseRecord(course_id, course_name, description, owner_teacher_id, invite_code, now, now)
 
+    def list_all_courses(self) -> list[dict]:
+        """管理员课程管理：查询全部课程，附带成员数量。"""
+        sql = """
+            SELECT c.course_id, c.course_name, c.description, c.owner_teacher_id,
+                   c.invite_code, c.created_at, c.updated_at,
+                   (SELECT COUNT(*) FROM course_members m WHERE m.course_id = c.course_id) AS member_count
+            FROM courses c
+            ORDER BY c.created_at DESC
+        """
+        if self.use_mysql:
+            return fetch_all(sql)
+        with self.connect() as conn:
+            rows = conn.execute(sql).fetchall()
+        return [dict(row) for row in rows]
+
+    def count_user_courses(self, user_id: str) -> int:
+        if self.use_mysql:
+            row = fetch_one(
+                "SELECT COUNT(*) AS count FROM course_members WHERE user_id = :user_id",
+                {"user_id": user_id},
+            )
+        else:
+            with self.connect() as conn:
+                row = conn.execute(
+                    "SELECT COUNT(*) AS count FROM course_members WHERE user_id = ?",
+                    (user_id,),
+                ).fetchone()
+                row = dict(row) if row else None
+        return int(row["count"]) if row else 0
+
+    def count_owned_courses(self, user_id: str) -> int:
+        if self.use_mysql:
+            row = fetch_one(
+                "SELECT COUNT(*) AS count FROM courses WHERE owner_teacher_id = :user_id",
+                {"user_id": user_id},
+            )
+        else:
+            with self.connect() as conn:
+                row = conn.execute(
+                    "SELECT COUNT(*) AS count FROM courses WHERE owner_teacher_id = ?",
+                    (user_id,),
+                ).fetchone()
+                row = dict(row) if row else None
+        return int(row["count"]) if row else 0
+
+    def delete_course(self, course_id: str) -> dict:
+        """删除课程及其成员关系，返回被删除的课程记录。"""
+        course = self.get_course(course_id)
+        if not course:
+            raise LookupError("课程不存在")
+        if self.use_mysql:
+            execute("DELETE FROM course_members WHERE course_id = :course_id", {"course_id": course_id})
+            execute("DELETE FROM courses WHERE course_id = :course_id", {"course_id": course_id})
+        else:
+            with self.connect() as conn:
+                conn.execute("DELETE FROM course_members WHERE course_id = ?", (course_id,))
+                conn.execute("DELETE FROM courses WHERE course_id = ?", (course_id,))
+        return course
+
+    def remove_user_from_all_courses(self, user_id: str) -> int:
+        if self.use_mysql:
+            return execute(
+                "DELETE FROM course_members WHERE user_id = :user_id",
+                {"user_id": user_id},
+            )
+        with self.connect() as conn:
+            cursor = conn.execute("DELETE FROM course_members WHERE user_id = ?", (user_id,))
+        return int(cursor.rowcount)
+
     def list_user_courses(self, user_id: str) -> list[dict]:
         sql = """
             SELECT c.course_id, c.course_name, c.description, c.owner_teacher_id, c.invite_code,

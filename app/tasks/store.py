@@ -142,4 +142,16 @@ class TaskStore:
         return [self._decode(dict(row)) for row in rows]
 
 
+    def delete_course_tasks(self, course_id: str) -> int:
+        """管理员删除课程时，级联清理该课程的入库任务记录。"""
+        if self.use_mysql:
+            return execute(
+                "DELETE FROM ingestion_tasks WHERE course_id = :course_id",
+                {"course_id": course_id},
+            )
+        with self.connect() as conn:
+            cursor = conn.execute("DELETE FROM ingestion_tasks WHERE course_id = ?", (course_id,))
+        return int(cursor.rowcount)
+
+
 task_store = TaskStore()

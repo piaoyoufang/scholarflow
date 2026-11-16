@@ -124,4 +124,30 @@ class FeedbackStore:
         return [dict(row) for row in rows]
 
 
+    def global_summary(self) -> dict:
+        """管理员数据统计：全平台问答反馈汇总。"""
+        if self.use_mysql:
+            rows = fetch_all("SELECT rating, COUNT(*) AS count FROM qa_feedback GROUP BY rating")
+        else:
+            with self.connect() as conn:
+                rows = conn.execute(
+                    "SELECT rating, COUNT(*) AS count FROM qa_feedback GROUP BY rating"
+                ).fetchall()
+                rows = [dict(row) for row in rows]
+        data = {"up": 0, "down": 0}
+        for row in rows:
+            data[row["rating"]] = int(row["count"])
+        return data
+
+    def delete_course_feedback(self, course_id: str) -> int:
+        if self.use_mysql:
+            return execute(
+                "DELETE FROM qa_feedback WHERE course_id = :course_id",
+                {"course_id": course_id},
+            )
+        with self.connect() as conn:
+            cursor = conn.execute("DELETE FROM qa_feedback WHERE course_id = ?", (course_id,))
+        return int(cursor.rowcount)
+
+
 feedback_store = FeedbackStore()

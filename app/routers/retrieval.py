@@ -1,8 +1,8 @@
-"""检索调试域路由：查看 RAG 召回过程与命中片段——从 api.py 原样搬入"""
+﻿"""检索调试域路由：查看 RAG 召回过程与命中片段——从 api.py 原样搬入"""
 from fastapi import APIRouter, Depends, HTTPException
 
 from app.courses.store import course_store
-from app.deps import current_session
+from app.deps import current_session, ensure_course_viewer
 from app.retrieval.debug import debug_retrieval
 from app.schemas import AskRequest
 
@@ -23,7 +23,7 @@ def retrieval_debug(
 
     try:
         # 权限校验：要求当前用户必须是该课程的教师；普通学生禁止访问该调试接口
-        course_store.require_course_teacher(course_id, user_id)
+        ensure_course_viewer(course_id, user_id)
     except LookupError as exc:
         # 捕获异常：course_id课程不存在，返回404
         # from exc：保留原始异常堆栈，方便后端日志排查定位问题

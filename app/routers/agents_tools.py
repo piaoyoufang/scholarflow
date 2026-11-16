@@ -1,10 +1,10 @@
-"""学习工具域路由：学习计划生成/历史、自动出题/历史——从 api.py 原样搬入"""
+﻿"""学习工具域路由：学习计划生成/历史、自动出题/历史——从 api.py 原样搬入"""
 from fastapi import APIRouter, Depends, HTTPException
 
 from app.agents.learning_plan import generate_learning_plan
 from app.agents.quiz import generate_quiz
 from app.courses.store import course_store
-from app.deps import current_session
+from app.deps import current_session, ensure_course_access
 from app.learning_history.store import learning_history_store
 from app.observability import get_logger
 from app.schemas import LearningPlanRequest, QuizRequest
@@ -28,7 +28,7 @@ def learning_plan(
 
     try:
         # 权限校验函数：①判断课程是否存在 ②判断当前用户是否属于该课程（老师/学生）
-        course_store.require_course_access(course_id, user_id)
+        ensure_course_access(course_id, user_id)
     except LookupError as exc:
         # 捕获LookupError异常：传入的course_id课程不存在
         # from exc：保留原始异常堆栈信息，服务端日志可以看到原始报错
@@ -81,7 +81,7 @@ def list_learning_plan_history(
 ):
     user_id, _ = session
     try:
-        course_store.require_course_access(course_id, user_id)
+        ensure_course_access(course_id, user_id)
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except PermissionError as exc:
@@ -97,7 +97,7 @@ def get_learning_plan_history(
 ):
     user_id, _ = session
     try:
-        course_store.require_course_access(course_id, user_id)
+        ensure_course_access(course_id, user_id)
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except PermissionError as exc:
@@ -116,7 +116,7 @@ def delete_learning_plan_history(
 ):
     user_id, _ = session
     try:
-        course_store.require_course_access(course_id, user_id)
+        ensure_course_access(course_id, user_id)
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except PermissionError as exc:
@@ -142,7 +142,7 @@ def quiz(
 
     try:
         # 权限校验：校验课程是否存在、当前用户是否为本课程的老师/学生
-        course_store.require_course_access(course_id, user_id)
+        ensure_course_access(course_id, user_id)
     except LookupError as exc:
         # 捕获异常：course_id对应的课程不存在，返回HTTP 404
         # from exc：保留原始异常堆栈，服务端日志可以查看原始报错信息
@@ -195,7 +195,7 @@ def list_quiz_history(
 ):
     user_id, _ = session
     try:
-        course_store.require_course_access(course_id, user_id)
+        ensure_course_access(course_id, user_id)
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except PermissionError as exc:
@@ -211,7 +211,7 @@ def get_quiz_history(
 ):
     user_id, _ = session
     try:
-        course_store.require_course_access(course_id, user_id)
+        ensure_course_access(course_id, user_id)
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except PermissionError as exc:
@@ -230,7 +230,7 @@ def delete_quiz_history(
 ):
     user_id, _ = session
     try:
-        course_store.require_course_access(course_id, user_id)
+        ensure_course_access(course_id, user_id)
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except PermissionError as exc:

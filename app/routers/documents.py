@@ -1,4 +1,4 @@
-"""文档管理域路由：课程文档列表/删除/重新入库/异步上传、全局上传——从 api.py 原样搬入"""
+﻿"""文档管理域路由：课程文档列表/删除/重新入库/异步上传、全局上传——从 api.py 原样搬入"""
 import re
 from pathlib import Path
 from uuid import uuid4
@@ -9,7 +9,7 @@ from starlette.concurrency import run_in_threadpool
 from app.cache import delete_prefix
 from app.config import PROJECT_ROOT, settings
 from app.courses.store import course_store
-from app.deps import current_session
+from app.deps import current_session, ensure_course_access
 from app.ingestion.loader import ingest
 from app.knowledge.library import knowledge_library
 from app.observability import get_logger
@@ -53,7 +53,7 @@ def list_course_documents(course_id: str, session: tuple[str, str] = Depends(cur
     user_id, _ = session
     try:
         # 权限校验：课程必须存在，当前用户必须是该课程成员（老师/学生均可查看文档列表）
-        course_store.require_course_access(course_id, user_id)
+        ensure_course_access(course_id, user_id)
     except LookupError as exc:
         # 捕获课程不存在异常，返回HTTP 404，from exc保留原始异常堆栈信息，方便日志排查
         raise HTTPException(status_code=404, detail=str(exc)) from exc

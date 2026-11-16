@@ -1,35 +1,35 @@
 /* =========================================================
-   设计系统：浅色薰衣草玻璃（Light Lavender Glass）
+   设计系统：明亮白色（Bright Clean）
    所有页面共享的 token 与 Element Plus 覆盖
    ========================================================= */
 :root {
   color-scheme: light;
 
-  /* 背景与表面 */
-  --bg: #f6f4ff;
-  --panel: rgba(255, 255, 255, 0.72);
-  --panel-2: rgba(255, 255, 255, 0.88);
-  --card: rgba(255, 255, 255, 0.72);
-  --glass: rgba(255, 255, 255, 0.72);
-  --glass-strong: rgba(255, 255, 255, 0.88);
-  --glass-soft: rgba(255, 255, 255, 0.5);
+  /* 背景与表面：白底 + 纯白卡片，避免大面积彩色蒙层 */
+  --bg: #f8fafc;
+  --panel: #ffffff;
+  --panel-2: #ffffff;
+  --card: #ffffff;
+  --glass: #ffffff;
+  --glass-strong: #ffffff;
+  --glass-soft: rgba(255, 255, 255, 0.86);
 
   /* 文字 */
-  --text: #221b3a;
-  --text-2: #40375e;
-  --text-dark: #221b3a;
-  --muted: #6b6482;
-  --muted-2: #928baa;
+  --text: #0f172a;
+  --text-2: #334155;
+  --text-dark: #0f172a;
+  --muted: #64748b;
+  --muted-2: #94a3b8;
 
   /* 描边与阴影 */
-  --border: rgba(88, 63, 160, 0.16);
-  --border-soft: rgba(88, 63, 160, 0.1);
-  --border-strong: rgba(88, 63, 160, 0.3);
+  --border: #e2e8f0;
+  --border-soft: #eef2f7;
+  --border-strong: #cbd5e1;
 
   /* 品牌色 */
   --primary: #7c3aed;
   --primary-2: #db2777;
-  --primary-soft: rgba(124, 58, 237, 0.12);
+  --primary-soft: rgba(124, 58, 237, 0.1);
   --primary-grad: linear-gradient(135deg, #7c3aed, #db2777);
   --danger: #e11d48;
 
@@ -38,8 +38,8 @@
   --radius-lg: 18px;
   --radius-sm: 8px;
   --control-h: 46px;
-  --shadow: 0 18px 44px -26px rgba(76, 29, 149, 0.35);
-  --shadow-soft: 0 18px 44px -26px rgba(76, 29, 149, 0.35);
+  --shadow: 0 12px 32px -18px rgba(15, 23, 42, 0.18);
+  --shadow-soft: 0 10px 28px -20px rgba(15, 23, 42, 0.16);
   --blur: blur(20px);
 
   /* Element Plus 基础色板对齐 */
@@ -49,13 +49,13 @@
   --el-color-primary-light-7: #ddd6fe;
   --el-color-primary-light-8: #ede9fe;
   --el-color-primary-light-9: #f5f3ff;
-  --el-text-color-primary: #221b3a;
-  --el-text-color-regular: #40375e;
-  --el-text-color-secondary: #6b6482;
-  --el-text-color-placeholder: #9a92b3;
-  --el-border-color: rgba(88, 63, 160, 0.16);
-  --el-border-color-light: rgba(88, 63, 160, 0.12);
-  --el-border-color-lighter: rgba(88, 63, 160, 0.1);
+  --el-text-color-primary: #0f172a;
+  --el-text-color-regular: #334155;
+  --el-text-color-secondary: #64748b;
+  --el-text-color-placeholder: #9aa4b2;
+  --el-border-color: #e2e8f0;
+  --el-border-color-light: #eef2f7;
+  --el-border-color-lighter: #f1f5f9;
   --el-fill-color-blank: #ffffff;
 }
 
@@ -67,9 +67,9 @@ body {
   color: var(--text);
   background-color: var(--bg);
   background-image:
-    radial-gradient(52% 46% at 12% 6%, rgba(196, 181, 253, 0.18), transparent 62%),
-    radial-gradient(44% 40% at 88% 2%, rgba(249, 168, 212, 0.14), transparent 62%),
-    radial-gradient(56% 54% at 72% 92%, rgba(191, 219, 254, 0.14), transparent 64%);
+    radial-gradient(46% 38% at 10% 0%, rgba(196, 181, 253, 0.1), transparent 62%),
+    radial-gradient(38% 34% at 92% 2%, rgba(249, 168, 212, 0.07), transparent 62%),
+    radial-gradient(48% 40% at 76% 100%, rgba(191, 219, 254, 0.1), transparent 64%);
   background-attachment: fixed;
   -webkit-font-smoothing: antialiased;
 }

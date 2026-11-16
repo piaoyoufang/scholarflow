@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="chat-page">
     <!-- 左侧：会话列表 -->
     <aside class="thread-rail">
@@ -522,7 +522,7 @@ onBeforeUnmount(() => {
   padding: 14px 10px;
   border-radius: 16px;
   border: 1px solid var(--border);
-  background: rgba(255, 255, 255, 0.6);
+  background: #ffffff;
   backdrop-filter: blur(16px);
 }
 
@@ -534,7 +534,7 @@ onBeforeUnmount(() => {
   height: 40px;
   border-radius: 10px;
   border: 1px solid var(--border);
-  background: rgba(255, 255, 255, 0.85);
+  background: #ffffff;
   color: var(--text-2);
   font-size: 13px;
   font-weight: 600;
@@ -608,7 +608,7 @@ onBeforeUnmount(() => {
   min-width: 0;
   border-radius: 18px;
   border: 1px solid var(--border);
-  background: rgba(255, 255, 255, 0.58);
+  background: #ffffff;
   backdrop-filter: blur(18px);
   overflow: hidden;
 }
@@ -671,7 +671,7 @@ onBeforeUnmount(() => {
   padding: 12px 14px;
   border-radius: 12px;
   border: 1px solid var(--border);
-  background: rgba(255, 255, 255, 0.7);
+  background: #ffffff;
   color: var(--text-2);
   font-size: 12.5px;
   text-align: left;
@@ -702,7 +702,7 @@ onBeforeUnmount(() => {
   font-size: 11px;
   font-weight: 700;
   color: var(--text-2);
-  background: rgba(255, 255, 255, 0.85);
+  background: #ffffff;
   border: 1px solid var(--border);
 }
 .turn.assistant .avatar {
@@ -719,7 +719,7 @@ onBeforeUnmount(() => {
   padding: 12px 16px;
   border-radius: 14px;
   border: 1px solid var(--border-soft);
-  background: rgba(255, 255, 255, 0.7);
+  background: #ffffff;
   font-size: 13.5px;
   line-height: 1.75;
   color: var(--text-2);
@@ -752,7 +752,7 @@ onBeforeUnmount(() => {
   padding: 5px 10px;
   border-radius: 999px;
   border: 1px solid var(--border);
-  background: rgba(255, 255, 255, 0.7);
+  background: #ffffff;
   color: var(--muted);
   font-size: 11.5px;
   cursor: pointer;
@@ -774,7 +774,7 @@ onBeforeUnmount(() => {
   padding: 10px 12px;
   border-radius: 10px;
   border: 1px solid var(--border-soft);
-  background: rgba(255, 255, 255, 0.55);
+  background: #ffffff;
 }
 .cite-idx { flex-shrink: 0; font-size: 11px; color: var(--primary); }
 .cite-body { min-width: 0; }
@@ -836,7 +836,7 @@ onBeforeUnmount(() => {
   padding: 6px 14px;
   border-radius: 999px;
   border: 1px solid var(--border);
-  background: rgba(255, 255, 255, 0.92);
+  background: #ffffff;
   color: var(--text-2);
   font-size: 11.5px;
   cursor: pointer;
@@ -853,7 +853,7 @@ onBeforeUnmount(() => {
   padding: 8px 8px 8px 14px;
   border-radius: 14px;
   border: 1px solid var(--border);
-  background: rgba(255, 255, 255, 0.85);
+  background: #ffffff;
   transition: all 0.2s ease;
 }
 .composer-box:focus-within {

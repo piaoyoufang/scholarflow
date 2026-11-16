@@ -6,7 +6,7 @@
     </el-breadcrumb>
 
     <h1 class="page-title">我的课程</h1>
-    <p class="page-desc">{{ auth.isTeacher ? '创建或选择当前课程，后续知识库、问答、出题和分析都会围绕这门课工作。' : '选择你已加入的课程，后续 AI 问答、学习计划和自动出题都会围绕这门课工作。' }}</p>
+    <p class="page-desc">{{ auth.isAdmin ? '管理员可进入任意课程查看知识库、问答分析与课程看板，也可以试用 AI 问答。' : (auth.isTeacher ? '创建或选择当前课程，后续知识库、问答、出题和分析都会围绕这门课工作。' : '选择你已加入的课程，后续 AI 问答、学习计划和自动出题都会围绕这门课工作。') }}</p>
 
     <el-card v-if="auth.isTeacher" class="panel-card create-card">
       <template #header>
@@ -74,7 +74,7 @@
       <el-card v-for="course in courses" :key="course.course_id" class="course-card" :class="{ active: course.course_id === auth.currentCourseId }" @click="selectCourse(course)">
         <div class="course-top">
           <h3>{{ course.course_name || '未命名课程' }}</h3>
-          <el-tag :type="course.role_in_course === 'teacher' ? 'primary' : 'success'" effect="light" round>{{ roleLabel(course.role_in_course) }}</el-tag>
+          <el-tag :type="roleTagType(course.role_in_course)" effect="light" round>{{ roleLabel(course.role_in_course) }}</el-tag>
         </div>
         <p>{{ course.description || '暂无课程说明' }}</p>
         <div v-if="course.role_in_course === 'teacher' && course.invite_code" class="invite-code" @click.stop>
@@ -101,7 +101,7 @@
         </el-table-column>
         <el-table-column prop="role_in_course" label="角色" width="120">
           <template #default="{ row }">
-            <el-tag :type="row.role_in_course === 'teacher' ? 'primary' : 'success'" effect="light" round>
+            <el-tag :type="roleTagType(row.role_in_course)" effect="light" round>
               {{ roleLabel(row.role_in_course) }}
             </el-tag>
           </template>
@@ -210,6 +210,12 @@ function selectCourse(course) {
 function roleLabel(role) {
   const map = { teacher: '教师', student: '学生', assistant: '助教', admin: '管理员' }
   return map[role] || '未知'
+}
+
+function roleTagType(role) {
+  if (role === 'teacher') return 'primary'
+  if (role === 'admin') return 'warning'
+  return 'success'
 }
 
 onMounted(loadCourses)

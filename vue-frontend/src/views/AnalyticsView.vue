@@ -68,7 +68,7 @@
         </el-table>
       </el-card>
 
-      <el-card class="panel-card table-card">
+      <el-card v-if="!isAdminViewer" class="panel-card table-card">
         <template #header>
           <div class="card-header">
             <span>低质量问题处理</span>
@@ -130,6 +130,9 @@ const statusOptions = [
   { label: '已解决', value: 'resolved' },
   { label: '已忽略', value: 'ignored' }
 ]
+
+// 管理员以只读视角进入他人课程：可看统计数据，不参与问题处理
+const isAdminViewer = computed(() => auth.isAdmin && auth.currentCourseRole === 'admin')
 
 const summaryCards = computed(() => [
   { label: '问答总数', value: dashboard.value.qa_count ?? 0, desc: '当前课程累计问答次数' },

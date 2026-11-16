@@ -8,6 +8,23 @@ export const authApi = {
   logout: (refreshToken) => request.post('/auth/logout', { refresh_token: refreshToken })
 }
 
+export const adminApi = {
+  listInvites: () => request.get('/admin/teacher-invites'),
+  createInvite: (payload) => request.post('/admin/teacher-invites', payload),
+  reissueInvite: (inviteId, payload) => request.post(`/admin/teacher-invites/${inviteId}/reissue`, payload),
+  revokeInvite: (inviteId) => request.delete(`/admin/teacher-invites/${inviteId}`),
+  listUsers: () => request.get('/admin/users'),
+  createUser: (payload) => request.post('/admin/users', payload),
+  updateUserRole: (userId, payload) => request.patch(`/admin/users/${userId}/role`, payload),
+  resetPassword: (userId, payload) => request.post(`/admin/users/${userId}/reset-password`, payload),
+  setUserDisabled: (userId, payload) => request.post(`/admin/users/${userId}/disabled`, payload),
+  revokeUserSessions: (userId) => request.post(`/admin/users/${userId}/revoke-sessions`),
+  deleteUser: (userId) => request.delete(`/admin/users/${userId}`),
+  listCourses: () => request.get('/admin/courses'),
+  deleteCourse: (courseId) => request.delete(`/admin/courses/${courseId}`),
+  stats: () => request.get('/admin/stats')
+}
+
 export const threadApi = {
   list: () => request.get('/threads'),
   detail: (threadId) => request.get(`/threads/${threadId}`),

@@ -10,6 +10,10 @@ import QuizView from '../views/QuizView.vue'
 import RetrievalDebugView from '../views/RetrievalDebugView.vue'
 import AnalyticsView from '../views/AnalyticsView.vue'
 import DashboardView from '../views/DashboardView.vue'
+import AdminInvitesView from '../views/AdminInvitesView.vue'
+import AdminAccountsView from '../views/AdminAccountsView.vue'
+import AdminCoursesView from '../views/AdminCoursesView.vue'
+import AdminStatsView from '../views/AdminStatsView.vue'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -29,7 +33,11 @@ const router = createRouter({
         { path: 'retrieval-debug', name: 'retrieval-debug', component: RetrievalDebugView, meta: { title: '检索可视化', roles: ['teacher'] } },
         { path: 'tasks', redirect: '/documents' },
         { path: 'analytics', name: 'analytics', component: AnalyticsView, meta: { title: '问答分析', roles: ['teacher'] } },
-        { path: 'dashboard', name: 'dashboard', component: DashboardView, meta: { title: '课程看板', roles: ['teacher'] } }
+        { path: 'dashboard', name: 'dashboard', component: DashboardView, meta: { title: '课程看板', roles: ['teacher'] } },
+        { path: 'admin/stats', name: 'admin-stats', component: AdminStatsView, meta: { title: '数据统计', requiresAdmin: true } },
+        { path: 'admin/accounts', name: 'admin-accounts', component: AdminAccountsView, meta: { title: '账号管理', requiresAdmin: true } },
+        { path: 'admin/courses', name: 'admin-courses', component: AdminCoursesView, meta: { title: '课程管理', requiresAdmin: true } },
+        { path: 'admin/invites', name: 'admin-invites', component: AdminInvitesView, meta: { title: '教师邀请码', requiresAdmin: true } }
       ]
     }
   ]
@@ -40,7 +48,8 @@ router.beforeEach((to) => {
   auth.restoreFromStorage()
   if (to.meta.requiresAuth && !auth.accessToken) return '/login'
   if (to.path === '/login' && auth.accessToken) return '/courses'
-  if (to.meta.roles?.length && !to.meta.roles.includes(auth.role)) return '/courses'
+  if (to.meta.roles?.length && !auth.isAdmin && !to.meta.roles.includes(auth.role)) return '/courses'
+  if (to.meta.requiresAdmin && !auth.isAdmin) return '/courses'
   return true
 })
 

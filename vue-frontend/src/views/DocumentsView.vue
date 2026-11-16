@@ -6,14 +6,16 @@
     <div v-if="!auth.hasCourse" class="empty-state">请先在“我的课程”里创建或选择一门课程。</div>
 
     <template v-else>
-      <el-card class="panel-card upload-card">
+      <div v-if="isAdminViewer" class="empty-state admin-notice">管理员视角：可查看课程资料与处理进度，上传、重新入库和删除仍由课程教师操作。</div>
+
+      <el-card v-if="!isAdminViewer" class="panel-card upload-card">
         <template #header>
           <div class="card-header">
             <span>上传课程资料</span>
             <el-tag effect="plain" round>PDF / TXT / Markdown</el-tag>
           </div>
         </template>
-        <el-upload drag :auto-upload="false" :limit="1" :on-change="onFileChange" :on-remove="onRemove" accept=".pdf,.txt,.md">
+        <el-upload ref="uploadRef" drag :auto-upload="false" :limit="1" :on-change="onFileChange" :on-remove="onRemove" accept=".pdf,.txt,.md">
           <div class="upload-text">拖拽 PDF / TXT / Markdown 到这里，或点击选择文件</div>
           <div class="upload-hint">上传后系统会自动完成解析、切片和向量入库。</div>
         </el-upload>
@@ -64,7 +66,7 @@
             <el-tag :type="doc.status === 'success' ? 'success' : 'warning'" effect="light" round>{{ documentStatusText(doc.status) }}</el-tag>
           </div>
           <p>类型：{{ doc.file_type || '未知' }} ｜ 切片：{{ doc.chunk_count || 0 }}</p>
-          <div class="actions">
+          <div class="actions" v-if="!isAdminViewer">
             <el-button @click="reingest(doc)">重新入库</el-button>
             <el-button type="danger" plain @click="remove(doc)">删除资料</el-button>
           </div>
@@ -99,12 +101,15 @@ const auth = useAuthStore()
 const documents = ref([])
 const tasks = ref([])
 const file = ref(null)
+const uploadRef = ref()
 const uploading = ref(false)
 const documentLoading = ref(false)
 const taskLoading = ref(false)
 let pollTimer = null
 
 const recentTasks = computed(() => tasks.value.slice(0, 5))
+// 管理员以只读视角进入他人课程：可查看资料与进度，但不能上传、重新入库或删除
+const isAdminViewer = computed(() => auth.isAdmin && auth.currentCourseRole === 'admin')
 
 function onFileChange(uploadFile) {
   file.value = uploadFile.raw
@@ -213,6 +218,8 @@ async function upload() {
   try {
     await courseApi.uploadDocument(auth.currentCourseId, file.value)
     file.value = null
+    // 清空 el-upload 的文件列表，否则同一个文件无法再次选择上传
+    uploadRef.value?.clearFiles()
     ElMessage.success('资料已上传，系统正在后台解析入库')
     await refreshAll()
     updatePolling()
@@ -235,13 +242,14 @@ async function reingest(doc) {
 }
 
 async function remove(doc) {
-  await ElMessageBox.confirm('确认删除该资料？', '删除资料')
   try {
+    await ElMessageBox.confirm('确认删除该资料？', '删除资料')
     await courseApi.deleteDocument(auth.currentCourseId, doc.source_id)
     ElMessage.success('资料已删除')
     await refreshAll()
   } catch (e) {
-    ElMessage.error(errorMessage(e))
+    // 用户主动取消/关闭弹窗不提示错误
+    if (e !== 'cancel' && e !== 'close') ElMessage.error(errorMessage(e))
   }
 }
 

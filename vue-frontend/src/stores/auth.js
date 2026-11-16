@@ -15,6 +15,7 @@ export const useAuthStore = defineStore('auth', {
     refreshToken: '',
     refreshExpiresAt: '',
     role: '',
+    isAdmin: false,
     currentCourseId: '',
     currentCourseName: '',
     currentCourseRole: '',
@@ -37,6 +38,7 @@ export const useAuthStore = defineStore('auth', {
         const data = JSON.parse(raw)
         Object.assign(this, data)
         if (!this.role && this.accessToken) this.role = 'teacher'
+        this.isAdmin = Boolean(this.isAdmin)
         if (!this.threadId) this.threadId = v4Like()
         if (!Array.isArray(this.messages)) this.messages = []
       } catch {
@@ -51,6 +53,7 @@ export const useAuthStore = defineStore('auth', {
         refreshToken: this.refreshToken,
         refreshExpiresAt: this.refreshExpiresAt,
         role: this.role,
+        isAdmin: this.isAdmin,
         currentCourseId: this.currentCourseId,
         currentCourseName: this.currentCourseName,
         currentCourseRole: this.currentCourseRole,
@@ -67,6 +70,7 @@ export const useAuthStore = defineStore('auth', {
       this.refreshToken = data.refresh_token
       this.refreshExpiresAt = data.refresh_expires_at
       this.role = data.role || 'student'
+      this.isAdmin = Boolean(data.is_admin)
       this.persist()
     },
     // 用 refresh token 静默换新 access token（双令牌续期）
@@ -97,7 +101,15 @@ export const useAuthStore = defineStore('auth', {
       }
     },
     setCourse(course) {
-      this.currentCourseId = course?.course_id || ''
+      const nextCourseId = course?.course_id || ''
+      // 切换课程必须重置会话上下文，否则上一门课程的问答历史会串到新课程
+      if (nextCourseId !== this.currentCourseId) {
+        this.threadId = v4Like()
+        this.messages = []
+        this.lastQuestion = ''
+        this.lastAnswer = ''
+      }
+      this.currentCourseId = nextCourseId
       this.currentCourseName = course?.course_name || ''
       this.currentCourseRole = course?.role_in_course || course?.role || ''
       this.persist()

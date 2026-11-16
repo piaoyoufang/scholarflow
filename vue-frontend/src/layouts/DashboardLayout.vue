@@ -11,6 +11,12 @@
 
       <el-menu router :default-active="$route.path" background-color="transparent" text-color="#cbd5e1" active-text-color="#ffffff">
         <el-menu-item index="/courses">我的课程</el-menu-item>
+        <template v-if="auth.isAdmin">
+          <el-menu-item index="/admin/stats">数据统计</el-menu-item>
+          <el-menu-item index="/admin/accounts">账号管理</el-menu-item>
+          <el-menu-item index="/admin/courses">课程管理</el-menu-item>
+          <el-menu-item index="/admin/invites">教师邀请码</el-menu-item>
+        </template>
         <template v-if="auth.isTeacher">
           <el-menu-item index="/documents">课程知识库</el-menu-item>
         </template>
@@ -35,7 +41,7 @@
         <div class="topbar-title-block">
           <div class="top-title">{{ $route.meta.title || '高校课程AI学习助手平台项目' }}</div>
           <div v-if="auth.currentCourseId" class="course-line">当前课程：{{ auth.currentCourseName }} ｜ 课程角色：{{ roleLabel(auth.currentCourseRole) }}</div>
-          <div v-else class="course-line">{{ auth.isTeacher ? '请先进入“我的课程”创建或选择课程' : '请先进入“我的课程”选择已加入的课程' }}</div>
+          <div v-else class="course-line">{{ auth.isAdmin ? '管理员工作台：账号、课程与全平台数据统计' : (auth.isTeacher ? '请先进入“我的课程”创建或选择课程' : '请先进入“我的课程”选择已加入的课程') }}</div>
         </div>
       </el-header>
       <el-main class="main"><router-view /></el-main>
@@ -44,6 +50,12 @@
     <el-drawer v-model="mobileMenuVisible" title="高校课程AI学习助手" direction="ltr" size="78%" class="mobile-drawer">
       <el-menu router :default-active="$route.path" background-color="transparent" text-color="#cbd5e1" active-text-color="#ffffff" @select="mobileMenuVisible = false">
         <el-menu-item index="/courses">我的课程</el-menu-item>
+        <template v-if="auth.isAdmin">
+          <el-menu-item index="/admin/stats">数据统计</el-menu-item>
+          <el-menu-item index="/admin/accounts">账号管理</el-menu-item>
+          <el-menu-item index="/admin/courses">课程管理</el-menu-item>
+          <el-menu-item index="/admin/invites">教师邀请码</el-menu-item>
+        </template>
         <template v-if="auth.isTeacher">
           <el-menu-item index="/documents">课程知识库</el-menu-item>
         </template>

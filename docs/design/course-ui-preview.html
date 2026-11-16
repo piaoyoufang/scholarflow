@@ -1,0 +1,518 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>我的课程 · UI 方案效果图</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: #dcdde3; }
+  body { font-family: "Inter", "Segoe UI Variable", "Segoe UI", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+
+  /* ---------- 顶部方案切换 ---------- */
+  .bar {
+    position: sticky; top: 0; z-index: 99;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    padding: 10px 16px; flex-wrap: wrap;
+    background: rgba(250, 250, 252, .92);
+    backdrop-filter: blur(16px);
+    border-bottom: 1px solid #c9cad2;
+  }
+  .bar .label { font-size: 12px; font-weight: 600; color: #5a5b66; margin-right: 2px; }
+  .tab {
+    appearance: none; border: 1px solid #d0d1d9; background: #fff; color: #3f404a;
+    border-radius: 999px; padding: 6px 13px; font-size: 12.5px; font-weight: 600;
+    cursor: pointer; transition: .18s; font-family: inherit;
+  }
+  .tab:hover { transform: translateY(-1px); border-color: #b6b7c2; }
+  .tab.on { background: #16171e; border-color: #16171e; color: #fff; }
+  .bar .hint { font-size: 11.5px; color: #7a7b87; margin-left: 6px; }
+
+  /* ---------- 通用结构 ---------- */
+  .screen { display: none; min-height: 100vh; font-size: 14px; line-height: 1.55; }
+  .screen.on { display: flex; }
+
+  .side { width: 246px; flex: 0 0 246px; display: flex; flex-direction: column; padding: 16px 12px; position: sticky; top: 0; height: 100vh; }
+  .brand { display: flex; gap: 10px; align-items: center; padding: 6px 8px 16px; }
+  .logo { width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center; font-size: 10.5px; font-weight: 800; flex: 0 0 30px; }
+  .bname { font-size: 13.5px; font-weight: 600; line-height: 1.25; }
+  .bsub { font-size: 10.5px; margin-top: 2px; }
+  .nav { display: flex; flex-direction: column; gap: 1px; }
+  .nav-group { font-size: 9.5px; letter-spacing: .11em; text-transform: uppercase; padding: 14px 10px 6px; font-weight: 700; }
+  .nav-i { display: flex; align-items: center; gap: 9px; height: 33px; padding: 0 9px; border-radius: 7px; font-size: 12.8px; cursor: pointer; border: 1px solid transparent; transition: background .16s, color .16s, border-color .16s; }
+  .nav-i svg { width: 15px; height: 15px; flex: 0 0 15px; opacity: .85; }
+  .nav-i .cnt { margin-left: auto; font-size: 10px; padding: 1px 5px; border-radius: 999px; }
+  .side-foot { margin-top: auto; padding-top: 10px; }
+  .usercard { display: flex; gap: 9px; align-items: center; padding: 7px 8px; border-radius: 9px; }
+  .ava { width: 26px; height: 26px; border-radius: 999px; display: grid; place-items: center; font-size: 11px; font-weight: 600; flex: 0 0 26px; }
+  .ava.sm { width: 24px; height: 24px; flex: 0 0 24px; font-size: 10.5px; }
+  .uname { font-size: 12px; font-weight: 600; line-height: 1.3; }
+  .urole { font-size: 10.5px; }
+
+  .wrap { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .top { height: 54px; flex: 0 0 54px; display: flex; align-items: center; justify-content: space-between; padding: 0 26px; gap: 16px; }
+  .crumb { font-size: 12px; display: flex; align-items: center; gap: 7px; }
+  .crumb i { font-style: normal; opacity: .4; }
+  .top-r { display: flex; align-items: center; gap: 9px; }
+  .search { display: flex; align-items: center; gap: 7px; height: 30px; padding: 0 9px; border-radius: 7px; width: 240px; font-size: 11.5px; border: 1px solid; }
+  .search svg { width: 13px; height: 13px; opacity: .6; flex: 0 0 13px; }
+  .search kbd { margin-left: auto; font-size: 9.5px; font-family: inherit; padding: 1px 4px; border-radius: 4px; border: 1px solid; }
+  .icon-btn { width: 30px; height: 30px; display: grid; place-items: center; border-radius: 7px; background: none; border: 1px solid transparent; cursor: pointer; color: inherit; }
+  .icon-btn svg { width: 15px; height: 15px; }
+
+  .main { padding: 24px 28px 60px; width: 100%; max-width: 1140px; margin: 0 auto; }
+  .page-head { display: flex; justify-content: space-between; gap: 24px; align-items: flex-start; flex-wrap: wrap; margin-bottom: 18px; }
+  .page-head h1 { margin: 5px 0 7px; font-size: 26px; font-weight: 600; letter-spacing: -.02em; line-height: 1.2; }
+  .page-head p { margin: 0; font-size: 12.5px; max-width: 600px; }
+  .eyebrow { font-size: 10px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; }
+  .head-act { display: flex; gap: 8px; align-items: center; padding-top: 24px; }
+
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 32px; padding: 0 12px; border-radius: 7px; font-size: 12.5px; font-weight: 600; cursor: pointer; border: 1px solid transparent; transition: .16s; font-family: inherit; white-space: nowrap; }
+  .btn svg { width: 13px; height: 13px; }
+  .btn:hover { transform: translateY(-1px); }
+
+  .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
+  .kpi { padding: 12px 15px; border-radius: 10px; border: 1px solid; }
+  .kpi .k { font-size: 11px; font-weight: 500; }
+  .kpi .v { font-size: 21px; font-weight: 600; letter-spacing: -.02em; margin-top: 2px; font-variant-numeric: tabular-nums; display: flex; align-items: baseline; gap: 5px; }
+  .kpi .v small { font-size: 10.5px; font-weight: 500; letter-spacing: 0; }
+
+  .create { border-radius: 10px; padding: 14px 16px; border: 1px solid; margin-bottom: 24px; }
+  .create-h { display: flex; align-items: center; gap: 8px; margin-bottom: 11px; font-size: 12.5px; font-weight: 600; }
+  .create-b { display: grid; grid-template-columns: 1fr 1.7fr auto; gap: 10px; align-items: end; }
+  .field { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+  .field span { font-size: 11px; font-weight: 500; }
+  .field input { height: 32px; border-radius: 7px; border: 1px solid; padding: 0 10px; font-size: 12.2px; font-family: inherit; outline: none; width: 100%; }
+  .tag { font-size: 10px; padding: 2px 7px; border-radius: 999px; border: 1px solid; font-weight: 600; white-space: nowrap; line-height: 1.5; }
+
+  .sec-h { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 11px; }
+  .sec-h h2 { margin: 0; font-size: 14px; font-weight: 600; }
+  .sec-h .hint { font-size: 11px; }
+
+  .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  .card { border-radius: 10px; border: 1px solid; overflow: hidden; cursor: pointer; transition: transform .18s, border-color .18s, box-shadow .18s; display: flex; flex-direction: column; }
+  .card:hover { transform: translateY(-2px); }
+  .card-b { padding: 13px 14px 14px; display: flex; flex-direction: column; flex: 1; }
+  .card-t { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; margin-bottom: 6px; }
+  .card-t h3 { margin: 0; font-size: 14px; font-weight: 600; line-height: 1.35; }
+  .card p { margin: 0 0 11px; font-size: 11.8px; line-height: 1.65; }
+  .meta { display: flex; gap: 9px; font-size: 10.5px; margin-top: auto; padding-top: 9px; border-top: 1px solid; flex-wrap: wrap; }
+  .code { display: flex; align-items: center; gap: 7px; padding: 6px 9px; border-radius: 7px; font-size: 11px; margin-top: 9px; border: 1px solid; }
+  .code b { letter-spacing: .1em; font-size: 11.5px; font-weight: 700; }
+  .mini { margin-left: auto; font-size: 10px; padding: 2px 6px; border-radius: 5px; border: 1px solid; background: none; cursor: pointer; font-family: inherit; font-weight: 600; }
+  .cover { aspect-ratio: 16 / 9; position: relative; overflow: hidden; display: none; }
+  .cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .card-ico { display: none; width: 30px; height: 30px; border-radius: 8px; place-items: center; margin-bottom: 10px; }
+  .card-ico svg { width: 15px; height: 15px; }
+  .ico-emo { display: none; font-size: 16px; line-height: 1; }
+
+  @media (max-width: 1100px) { .cards { grid-template-columns: 1fr 1fr; } .create-b { grid-template-columns: 1fr; } }
+  @media (max-width: 860px) { .side { display: none; } .main { padding: 18px; } .cards { grid-template-columns: 1fr; } .search { display: none; } }
+
+  /* =========================================================
+     方案 A · Linear 风格（深色专业）
+     ========================================================= */
+  .v1 {
+    --bg: #08090c; --side: #0b0c11; --elev: #0e1016; --line: rgba(255,255,255,.075);
+    --line2: rgba(255,255,255,.16); --txt: #f0f0f6; --mut: #858797; --acc: #7c6cff;
+    background: var(--bg); color: var(--txt);
+  }
+  .v1 .side { background: var(--side); border-right: 1px solid var(--line); }
+  .v1 .logo { background: linear-gradient(140deg, #7c6cff, #4f7cff); color: #fff; box-shadow: 0 6px 18px -6px rgba(124,108,255,.9); }
+  .v1 .bsub, .v1 .urole, .v1 .nav-group, .v1 .sec-h .hint, .v1 .kpi .k { color: #6d6f7e; }
+  .v1 .nav-i { color: #a6a8b6; }
+  .v1 .nav-i:hover { background: rgba(255,255,255,.045); color: #fff; }
+  .v1 .nav-i.on { background: rgba(124,108,255,.15); color: #fff; box-shadow: inset 0 0 0 1px rgba(124,108,255,.28); }
+  .v1 .nav-i .cnt { background: rgba(255,255,255,.06); color: #8b8d9c; }
+  .v1 .usercard:hover { background: rgba(255,255,255,.04); }
+  .v1 .ava { background: linear-gradient(140deg,#7c6cff,#4f7cff); color: #fff; }
+  .v1 .top { border-bottom: 1px solid var(--line); }
+  .v1 .crumb { color: #6f7180; }
+  .v1 .crumb b { color: #d8d9e4; font-weight: 500; }
+  .v1 .search { background: rgba(255,255,255,.04); border-color: var(--line); color: #6f7180; }
+  .v1 .search kbd { border-color: rgba(255,255,255,.12); color: #6f7180; }
+  .v1 .icon-btn:hover { background: rgba(255,255,255,.05); }
+  .v1 .eyebrow { color: var(--acc); }
+  .v1 .page-head p { color: var(--mut); }
+  .v1 .btn.ghost { border-color: var(--line); color: #c9cad6; background: rgba(255,255,255,.03); }
+  .v1 .btn.ghost:hover { background: rgba(255,255,255,.07); }
+  .v1 .btn.primary { background: linear-gradient(140deg,#8272ff,#5b6bff); color: #fff; box-shadow: 0 8px 20px -10px rgba(124,108,255,.9); }
+  .v1 .kpi { background: var(--elev); border-color: var(--line); }
+  .v1 .kpi .v { color: #fff; }
+  .v1 .create { background: var(--elev); border-color: var(--line); }
+  .v1 .field span { color: #8b8d9c; }
+  .v1 .field input { background: #08090c; border-color: var(--line); color: #e9e9f0; }
+  .v1 .field input::placeholder { color: #555767; }
+  .v1 .field input:focus { border-color: rgba(124,108,255,.6); box-shadow: 0 0 0 3px rgba(124,108,255,.14); }
+  .v1 .tag { background: rgba(255,255,255,.05); border-color: var(--line); color: #a8aab8; }
+  .v1 .tag.role { background: rgba(124,108,255,.14); border-color: rgba(124,108,255,.3); color: #b3a8ff; }
+  .v1 .card { background: var(--elev); border-color: var(--line); }
+  .v1 .card:hover { border-color: var(--line2); }
+  .v1 .card.on { border-color: rgba(124,108,255,.55); box-shadow: 0 0 0 1px rgba(124,108,255,.35), 0 18px 40px -28px rgba(124,108,255,.9); }
+  .v1 .card-ico { display: grid; background: rgba(124,108,255,.14); color: #a99eff; box-shadow: inset 0 0 0 1px rgba(124,108,255,.22); }
+  .v1 .card-t h3 { color: #f4f4f9; }
+  .v1 .card p { color: #838595; }
+  .v1 .meta { border-color: var(--line); color: #6d6f7e; }
+  .v1 .code { background: rgba(124,108,255,.1); border-color: rgba(124,108,255,.22); color: #9c92ff; }
+  .v1 .code span { color: #7b7d8c; }
+  .v1 .code b { color: #c2baff; }
+  .v1 .mini { border-color: rgba(124,108,255,.3); color: #b3a8ff; }
+  .v1 .on-dot { width: 6px; height: 6px; border-radius: 999px; background: #7c6cff; box-shadow: 0 0 0 3px rgba(124,108,255,.2); }
+
+  /* =========================================================
+     方案 B · shadcn/ui 风格（浅色中性）
+     ========================================================= */
+  .v2 {
+    --bg: #ffffff; --side: #fafafa; --line: #e5e5e9; --txt: #09090b; --mut: #71717a;
+    background: var(--bg); color: var(--txt);
+  }
+  .v2 .side { background: var(--side); border-right: 1px solid var(--line); }
+  .v2 .logo { background: #18181b; color: #fff; }
+  .v2 .bsub, .v2 .urole, .v2 .nav-group, .v2 .sec-h .hint, .v2 .kpi .k { color: #8b8b93; }
+  .v2 .nav-i { color: #6b6b74; }
+  .v2 .nav-i:hover { background: #f0f0f2; color: #09090b; }
+  .v2 .nav-i.on { background: #f0f0f2; color: #09090b; font-weight: 500; }
+  .v2 .nav-i .cnt { background: #fff; color: #71717a; border: 1px solid var(--line); }
+  .v2 .usercard { background: #fff; border: 1px solid var(--line); }
+  .v2 .ava { background: #18181b; color: #fff; }
+  .v2 .top { border-bottom: 1px solid var(--line); }
+  .v2 .crumb { color: #a1a1aa; }
+  .v2 .crumb b { color: #3f3f46; font-weight: 500; }
+  .v2 .search { background: #fff; border-color: var(--line); color: #a1a1aa; }
+  .v2 .search kbd { border-color: var(--line); color: #a1a1aa; background: #fafafa; }
+  .v2 .icon-btn:hover { background: #f4f4f5; }
+  .v2 .eyebrow { color: #a1a1aa; }
+  .v2 .page-head p { color: var(--mut); }
+  .v2 .btn.ghost { border-color: var(--line); color: #3f3f46; background: #fff; box-shadow: 0 1px 2px rgba(9,9,11,.04); }
+  .v2 .btn.ghost:hover { background: #fafafa; }
+  .v2 .btn.primary { background: #18181b; color: #fff; box-shadow: 0 1px 2px rgba(9,9,11,.1); }
+  .v2 .kpi { background: #fff; border-color: var(--line); }
+  .v2 .kpi .v { color: #09090b; }
+  .v2 .create { background: #fff; border-color: var(--line); }
+  .v2 .field span { color: #52525b; }
+  .v2 .field input { background: #fff; border-color: #d4d4d8; color: #09090b; }
+  .v2 .field input::placeholder { color: #a1a1aa; }
+  .v2 .field input:focus { border-color: #a1a1aa; box-shadow: 0 0 0 3px rgba(24,24,27,.07); }
+  .v2 .tag { background: #fafafa; border-color: var(--line); color: #52525b; }
+  .v2 .tag.role { background: #fff; border-color: #d4d4d8; color: #18181b; }
+  .v2 .card { background: #fff; border-color: var(--line); }
+  .v2 .card:hover { box-shadow: 0 1px 2px rgba(9,9,11,.05), 0 8px 24px -12px rgba(9,9,11,.12); }
+  .v2 .card.on { border-color: #18181b; box-shadow: 0 0 0 1px #18181b; }
+  .v2 .cover { display: block; border-bottom: 1px solid var(--line); background: linear-gradient(140deg,#e4e4e7,#f4f4f5); }
+  .v2 .card-b { padding-top: 12px; }
+  .v2 .card-t h3 { color: #09090b; }
+  .v2 .card p { color: #71717a; }
+  .v2 .meta { border-color: #f0f0f2; color: #a1a1aa; }
+  .v2 .code { background: #fafafa; border-color: var(--line); color: #52525b; }
+  .v2 .code b { color: #18181b; }
+  .v2 .mini { border-color: #d4d4d8; color: #3f3f46; background: #fff; }
+
+  /* =========================================================
+     方案 C · Notion / 教育产品风格（温暖浅色）
+     ========================================================= */
+  .v3 {
+    --bg: #fbf9f4; --side: #f5f1e8; --line: #e8e2d4; --txt: #2f2a25; --mut: #7d7568;
+    background: var(--bg); color: var(--txt);
+  }
+  .v3 .side { background: var(--side); border-right: 1px solid var(--line); }
+  .v3 .logo { background: #2f6f4e; color: #fdfbf6; font-size: 11px; }
+  .v3 .bname { font-family: "Noto Serif SC", "Songti SC", SimSun, Georgia, serif; font-weight: 600; font-size: 14px; }
+  .v3 .bsub, .v3 .urole, .v3 .nav-group, .v3 .sec-h .hint, .v3 .kpi .k { color: #9a9182; }
+  .v3 .nav-i { color: #5f574b; border-radius: 8px; }
+  .v3 .nav-i:hover { background: rgba(47,42,37,.045); }
+  .v3 .nav-i.on { background: #fffdf8; color: #2f2a25; border-color: var(--line); box-shadow: 0 1px 2px rgba(47,42,37,.05); }
+  .v3 .nav-i .cnt { background: #ece5d6; color: #7d7568; }
+  .v3 .usercard { background: #fffdf8; border: 1px solid var(--line); }
+  .v3 .ava { background: #c8a27a; color: #fff; }
+  .v3 .top { border-bottom: 1px solid var(--line); }
+  .v3 .crumb { color: #a69c8b; }
+  .v3 .crumb b { color: #5f574b; font-weight: 500; }
+  .v3 .search { background: #fffdf8; border-color: var(--line); color: #a69c8b; }
+  .v3 .search kbd { border-color: var(--line); color: #a69c8b; }
+  .v3 .icon-btn:hover { background: rgba(47,42,37,.05); }
+  .v3 .page-head h1 { font-family: "Noto Serif SC", "Songti SC", SimSun, Georgia, serif; font-size: 30px; font-weight: 600; letter-spacing: 0; }
+  .v3 .eyebrow { color: #b08d5f; letter-spacing: .18em; }
+  .v3 .page-head p { color: var(--mut); }
+  .v3 .btn.ghost { border-color: var(--line); color: #5f574b; background: #fffdf8; }
+  .v3 .btn.ghost:hover { background: #fff; }
+  .v3 .btn.primary { background: #2f6f4e; color: #fdfbf6; box-shadow: 0 1px 2px rgba(47,111,78,.2); }
+  .v3 .kpi { background: #fffdf8; border-color: var(--line); border-radius: 12px; }
+  .v3 .kpi .v { color: #2f2a25; }
+  .v3 .create { background: #fffdf8; border-color: var(--line); border-radius: 14px; }
+  .v3 .create-h { color: #2f2a25; }
+  .v3 .field span { color: #7d7568; }
+  .v3 .field input { background: #fff; border-color: #e0d8c8; color: #2f2a25; border-radius: 8px; }
+  .v3 .field input::placeholder { color: #b3a999; }
+  .v3 .field input:focus { border-color: #8fb6a0; box-shadow: 0 0 0 3px rgba(47,111,78,.09); }
+  .v3 .tag { background: #f2ecdf; border-color: #e4dbc8; color: #857b6b; }
+  .v3 .tag.role { background: #eaf1ea; border-color: #d3e3d6; color: #2f6f4e; }
+  .v3 .card { background: #fffdf8; border-color: var(--line); border-radius: 14px; }
+  .v3 .card:hover { box-shadow: 0 2px 4px rgba(47,42,37,.04), 0 16px 32px -20px rgba(47,42,37,.25); }
+  .v3 .card.on { border-color: #9dbfa9; box-shadow: 0 0 0 2px rgba(47,111,78,.13); }
+  .v3 .cover { display: block; height: 116px; border-bottom: 1px solid #f0e9db; background: linear-gradient(140deg,#e8ddc8,#d9cdb4); }
+  .v3 .cover img { filter: saturate(.85) sepia(.1) brightness(.94); }
+  .v3 .cover::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(251,249,244,0) 58%, rgba(251,249,244,.5)); }
+  .v3 .card-ico { display: none; }
+  .v3 .ico-emo { display: block; }
+  .v3 .card-t h3 { font-family: "Noto Serif SC", "Songti SC", SimSun, Georgia, serif; font-size: 15px; font-weight: 600; color: #2f2a25; }
+  .v3 .card p { color: #857b6b; }
+  .v3 .meta { border-color: #f0e9db; color: #a69c8b; }
+  .v3 .code { background: #eaf1ea; border-color: #d6e5d9; color: #2f6f4e; }
+  .v3 .code span { color: #7d8f81; }
+  .v3 .code b { color: #245b3e; }
+  .v3 .mini { border-color: #cfe0d3; color: #2f6f4e; background: #fff; }
+
+  /* =========================================================
+     方案 D · 玻璃渐变（Framer / Arc 风格）
+     ========================================================= */
+  .v4 {
+    --txt: #ffffff; --mut: rgba(255,255,255,.62);
+    position: relative; background: #0a0713; color: var(--txt); overflow: hidden;
+  }
+  .v4 .mesh { position: absolute; inset: 0; z-index: 0; pointer-events: none;
+    background:
+      radial-gradient(52% 46% at 12% 6%, rgba(124,58,237,.62), transparent 62%),
+      radial-gradient(44% 40% at 88% 2%, rgba(236,72,153,.44), transparent 62%),
+      radial-gradient(56% 54% at 72% 92%, rgba(14,165,233,.38), transparent 64%),
+      radial-gradient(40% 40% at 30% 78%, rgba(16,185,129,.20), transparent 66%),
+      #0a0713;
+  }
+  .v4 > * { position: relative; z-index: 1; }
+  .v4 .side { background: rgba(255,255,255,.055); backdrop-filter: blur(22px); border-right: 1px solid rgba(255,255,255,.11); }
+  .v4 .logo { background: linear-gradient(140deg,#a78bfa,#ec4899); color: #fff; box-shadow: 0 8px 22px -8px rgba(236,72,153,.8); }
+  .v4 .bsub, .v4 .urole, .v4 .nav-group, .v4 .sec-h .hint, .v4 .kpi .k { color: rgba(255,255,255,.5); }
+  .v4 .nav-i { color: rgba(255,255,255,.74); }
+  .v4 .nav-i:hover { background: rgba(255,255,255,.09); color: #fff; }
+  .v4 .nav-i.on { background: rgba(255,255,255,.16); border-color: rgba(255,255,255,.24); color: #fff; box-shadow: 0 8px 24px -14px rgba(255,255,255,.5); }
+  .v4 .nav-i .cnt { background: rgba(255,255,255,.14); color: rgba(255,255,255,.8); }
+  .v4 .usercard { background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.14); backdrop-filter: blur(10px); }
+  .v4 .ava { background: rgba(255,255,255,.22); color: #fff; border: 1px solid rgba(255,255,255,.3); }
+  .v4 .top { border-bottom: 1px solid rgba(255,255,255,.1); }
+  .v4 .crumb { color: rgba(255,255,255,.55); }
+  .v4 .crumb b { color: #fff; font-weight: 500; }
+  .v4 .search { background: rgba(255,255,255,.09); border-color: rgba(255,255,255,.16); color: rgba(255,255,255,.55); backdrop-filter: blur(10px); }
+  .v4 .search kbd { border-color: rgba(255,255,255,.2); color: rgba(255,255,255,.55); }
+  .v4 .icon-btn:hover { background: rgba(255,255,255,.12); }
+  .v4 .page-head h1 { font-size: 30px; font-weight: 700; letter-spacing: -.03em; }
+  .v4 .eyebrow { color: #f0abfc; }
+  .v4 .page-head p { color: rgba(255,255,255,.74); }
+  .v4 .kpi .k { color: rgba(255,255,255,.66); }
+  .v4 .btn.ghost { background: rgba(255,255,255,.09); border-color: rgba(255,255,255,.18); color: #fff; backdrop-filter: blur(10px); }
+  .v4 .btn.ghost:hover { background: rgba(255,255,255,.16); }
+  .v4 .btn.primary { background: linear-gradient(135deg,#8b5cf6,#ec4899); color: #fff; box-shadow: 0 12px 30px -14px rgba(236,72,153,.9); }
+  .v4 .kpi, .v4 .create, .v4 .card { background: rgba(255,255,255,.1); border-color: rgba(255,255,255,.16); backdrop-filter: blur(20px); }
+  .v4 .kpi { border-radius: 14px; }
+  .v4 .kpi .v { color: #fff; }
+  .v4 .create { border-radius: 16px; }
+  .v4 .field span { color: rgba(255,255,255,.62); }
+  .v4 .field input { background: rgba(255,255,255,.08); border-color: rgba(255,255,255,.16); color: #fff; }
+  .v4 .field input::placeholder { color: rgba(255,255,255,.4); }
+  .v4 .field input:focus { border-color: rgba(240,171,252,.6); box-shadow: 0 0 0 3px rgba(236,72,153,.16); }
+  .v4 .tag { background: rgba(255,255,255,.12); border-color: rgba(255,255,255,.2); color: rgba(255,255,255,.82); }
+  .v4 .tag.role { background: rgba(240,171,252,.18); border-color: rgba(240,171,252,.4); color: #fbcfe8; }
+  .v4 .card { border-radius: 16px; }
+  .v4 .cover { display: block; background: linear-gradient(140deg,rgba(139,92,246,.5),rgba(236,72,153,.4)); }
+  .v4 .cover::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(10,7,19,0) 40%, rgba(10,7,19,.55)); }
+  .v4 .card:hover { transform: translateY(-3px); box-shadow: 0 24px 48px -26px rgba(236,72,153,.6); }
+  .v4 .card.on { border-color: rgba(240,171,252,.55); box-shadow: 0 0 0 1px rgba(240,171,252,.35), 0 24px 50px -26px rgba(236,72,153,.8); }
+  .v4 .card-b { padding-top: 12px; }
+  .v4 .card-t h3 { color: #fff; }
+  .v4 .card p { color: rgba(255,255,255,.8); }
+  .v4 .meta { border-color: rgba(255,255,255,.16); color: rgba(255,255,255,.66); }
+  .v4 .code { background: rgba(255,255,255,.1); border-color: rgba(255,255,255,.18); color: #fbcfe8; }
+  .v4 .code span { color: rgba(255,255,255,.5); }
+  .v4 .code b { color: #fff; }
+  .v4 .mini { border-color: rgba(255,255,255,.25); color: #fff; }
+</style>
+</head>
+<body>
+
+<div class="bar">
+  <span class="label">UI 方案</span>
+  <button class="tab on" data-v="v1">A · 深色专业</button>
+  <button class="tab" data-v="v2">B · 浅色中性</button>
+  <button class="tab" data-v="v3">C · 温暖教育</button>
+  <button class="tab" data-v="v4">D · 玻璃渐变</button>
+  <span class="hint" id="hint">参考 Linear / Vercel · 深色高密度，最接近 AI 工具类产品</span>
+</div>
+
+<div id="screens"></div>
+
+<script>
+const ICON = {
+  book: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5z"/><path d="M4 5.5V20.5"/></svg>',
+  folder: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7.5A1.5 1.5 0 0 1 4.5 6h4l2 2.5h7A1.5 1.5 0 0 1 19 10v7.5A1.5 1.5 0 0 1 17.5 19h-13A1.5 1.5 0 0 1 3 17.5z"/></svg>',
+  chat: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.4A8 8 0 1 1 21 12z"/></svg>',
+  plan: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M8 3v4M16 3v4M3.5 10h17"/></svg>',
+  quiz: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6h11M9 12h11M9 18h11"/><path d="M4 6l1 1 1.5-2M4 12l1 1 1.5-2M4 18l1 1 1.5-2"/></svg>',
+  debug: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5L21 21"/><circle cx="8" cy="9" r="1"/><circle cx="13" cy="12" r="1"/></svg>',
+  chart: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>',
+  dash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.5"/></svg>',
+  bell: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 1 0-12 0c0 6-2 7-2 7h16s-2-1-2-7z"/><path d="M10.5 19a1.8 1.8 0 0 0 3 0"/></svg>',
+  search: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M16.5 16.5L21 21"/></svg>',
+  plus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
+  refresh: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 1 0-2.3 6"/><path d="M20 5v6h-6"/></svg>',
+  spark: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/></svg>',
+  logout: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M15 17l5-5-5-5"/><path d="M20 12H9"/><path d="M11 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h5"/></svg>'
+};
+
+const COURSES = [
+  {
+    name: 'AI 应用开发实战课',
+    role: '教师',
+    emo: '🧠',
+    desc: '覆盖 RAG 检索、Agent 编排、评测与部署，配套 42 份课件与 18 个实验。',
+    meta: ['42 份资料', '31 名学生', '2 小时前更新'],
+    code: 'AI8K2P6Q',
+    on: true
+  },
+  {
+    name: '数据结构与算法',
+    role: '助教',
+    emo: '🌳',
+    desc: '线性表、树、图与经典算法，含 56 道自动生成练习与错题本。',
+    meta: ['36 份资料', '54 名学生', '昨天更新'],
+    code: 'DS4M7T2R',
+    on: false
+  },
+  {
+    name: '大学英语视听说',
+    role: '学生',
+    emo: '🎧',
+    desc: '以听说训练与情景对话为主，AI 口语陪练与学习计划已接入。',
+    meta: ['21 份资料', '—', '3 天前更新'],
+    code: '',
+    on: false
+  }
+];
+
+const COVER_PROMPTS = [
+  'abstract 3d render of neural network nodes and glowing connecting lines, deep violet and cyan light, dark background, minimal premium technology aesthetic, soft depth of field',
+  'abstract geometric data structure graph, connected nodes and edges, teal and blue gradient glow, dark minimal background, clean modern render',
+  'abstract concentric sound waves emerging from an open book, deep amber and warm brown tones, dramatic rim light, dark background, minimal editorial 3d illustration'
+];
+
+function coverUrl(i) {
+  const base = 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image';
+  return base + '?prompt=' + encodeURIComponent(COVER_PROMPTS[i]) + '&image_size=landscape_4_3';
+}
+
+function navItem(icon, label, on, count) {
+  return '<div class="nav-i' + (on ? ' on' : '') + '">' + ICON[icon] +
+    '<span>' + label + '</span>' +
+    (count ? '<span class="cnt">' + count + '</span>' : '') + '</div>';
+}
+
+function card(c, i) {
+  return '<article class="card' + (c.on ? ' on' : '') + '">' +
+    '<div class="cover"><img data-cover="' + i + '" alt="" loading="lazy" onerror="this.style.display=\'none\'"></div>' +
+    '<div class="card-b">' +
+      '<div class="card-ico">' +
+        '<span class="ico-svg">' + ICON.spark + '</span>' +
+        '<span class="ico-emo">' + c.emo + '</span>' +
+      '</div>' +
+      '<div class="card-t"><h3>' + c.name + '</h3><span class="tag role">' + c.role + '</span></div>' +
+      '<p>' + c.desc + '</p>' +
+      '<div class="meta">' + c.meta.map(function (m) { return '<span>' + m + '</span>'; }).join('') + '</div>' +
+      (c.code
+        ? '<div class="code"><span>课程码</span><b>' + c.code + '</b><button class="mini">复制</button></div>'
+        : '') +
+    '</div>' +
+  '</article>';
+}
+
+function screen(v) {
+  return '<section class="screen ' + v + (v === 'v1' ? ' on' : '') + '">' +
+    '<div class="mesh"></div>' +
+    '<aside class="side">' +
+      '<div class="brand">' +
+        '<div class="logo">SF</div>' +
+        '<div><div class="bname">ScholarFlow</div><div class="bsub">高校课程 AI 学习平台</div></div>' +
+      '</div>' +
+      '<div class="nav">' +
+        '<div class="nav-group">教学空间</div>' +
+        navItem('book', '我的课程', true) +
+        navItem('folder', '课程知识库', false, '128') +
+        navItem('chat', 'AI 问答', false) +
+        navItem('plan', '学习计划', false) +
+        navItem('quiz', '自动出题', false) +
+        '<div class="nav-group">教师工具</div>' +
+        navItem('debug', '检索可视化', false) +
+        navItem('chart', '问答分析', false) +
+        navItem('dash', '课程看板', false) +
+      '</div>' +
+      '<div class="side-foot">' +
+        '<div class="usercard">' +
+          '<div class="ava">唐</div>' +
+          '<div style="min-width:0"><div class="uname">唐攀</div><div class="urole">教师 · 讲师</div></div>' +
+        '</div>' +
+      '</div>' +
+    '</aside>' +
+    '<div class="wrap">' +
+      '<header class="top">' +
+        '<div class="crumb">工作台<i>/</i><b>我的课程</b></div>' +
+        '<div class="top-r">' +
+          '<div class="search">' + ICON.search + '<span>搜索课程、资料、问答</span><kbd>⌘K</kbd></div>' +
+          '<button class="icon-btn">' + ICON.bell + '</button>' +
+          '<div class="ava sm">唐</div>' +
+        '</div>' +
+      '</header>' +
+      '<main class="main">' +
+        '<div class="page-head">' +
+          '<div>' +
+            '<div class="eyebrow">Course Workspace</div>' +
+            '<h1>我的课程</h1>' +
+            '<p>创建或选择当前课程，知识库、AI 问答、自动出题与学习分析都会围绕这门课工作。</p>' +
+          '</div>' +
+          '<div class="head-act">' +
+            '<button class="btn ghost">' + ICON.refresh + '刷新</button>' +
+            '<button class="btn primary">' + ICON.plus + '新建课程</button>' +
+          '</div>' +
+        '</div>' +
+        '<div class="kpis">' +
+          '<div class="kpi"><div class="k">课程总数</div><div class="v">3<small>门</small></div></div>' +
+          '<div class="kpi"><div class="k">课程资料</div><div class="v">128<small>份</small></div></div>' +
+          '<div class="kpi"><div class="k">累计问答</div><div class="v">342<small>次</small></div></div>' +
+          '<div class="kpi"><div class="k">覆盖学生</div><div class="v">87<small>人</small></div></div>' +
+        '</div>' +
+        '<section class="create">' +
+          '<div class="create-h"><span>创建课程</span><span class="tag">教师工作台</span></div>' +
+          '<div class="create-b">' +
+            '<label class="field"><span>课程名称</span><input placeholder="例如：AI 应用开发实战课"></label>' +
+            '<label class="field"><span>课程说明</span><input placeholder="这门课包含 RAG、Agent、评测与部署等资料"></label>' +
+            '<button class="btn primary">' + ICON.plus + '创建课程</button>' +
+          '</div>' +
+        '</section>' +
+        '<div class="sec-h"><h2>选择当前课程</h2><span class="hint">点击卡片即可切换当前课程</span></div>' +
+        '<div class="cards">' + COURSES.map(card).join('') + '</div>' +
+      '</main>' +
+    '</div>' +
+  '</section>';
+}
+
+document.getElementById('screens').innerHTML = ['v1', 'v2', 'v3', 'v4'].map(screen).join('');
+
+document.querySelectorAll('img[data-cover]').forEach(function (img) {
+  img.src = coverUrl(Number(img.dataset.cover));
+});
+
+const HINTS = {
+  v1: '参考 Linear / Vercel · 深色高密度，最接近 AI 工具类产品',
+  v2: '参考 shadcn/ui、Vercel Dashboard · 白底细边框，克制、可信、易维护',
+  v3: '参考 Notion、Readwise · 米色暖底 + 衬线标题，教育产品亲和力最强',
+  v4: '参考 Framer、Arc · 渐变玻璃质感，视觉冲击最强，适合演示与答辩'
+};
+
+document.querySelectorAll('.tab').forEach(function (tab) {
+  tab.addEventListener('click', function () {
+    document.querySelectorAll('.tab').forEach(function (t) { t.classList.remove('on'); });
+    tab.classList.add('on');
+    document.querySelectorAll('.screen').forEach(function (s) { s.classList.remove('on'); });
+    document.querySelector('.screen.' + tab.dataset.v).classList.add('on');
+    document.getElementById('hint').textContent = HINTS[tab.dataset.v];
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  });
+});
+</script>
+</body>
+</html>

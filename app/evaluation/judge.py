@@ -62,8 +62,9 @@ def judge_answer(question: str, contexts: list[str], answer: str) -> JudgeScore:
     :param answer: RAG 系统生成的回答文本
     :return: JudgeScore，包含5项百分制分数、是否通过、打分理由
     """
-    # 获取 chat 模型实例，并开启结构化输出，强制把 LLM 输出解析为 JudgeScore
-    model = chat_model().with_structured_output(JudgeScore)
+    # 获取 chat 模型实例，并用函数调用方式强制把 LLM 输出解析为 JudgeScore
+    # （qwen-max 不支持 json_schema 结构化输出）
+    model = chat_model().with_structured_output(JudgeScore, method="function_calling")
 
     # 将上下文片段列表用两行换行拼接，变成完整字符串给大模型阅读
     context_text = "\n\n".join(contexts)

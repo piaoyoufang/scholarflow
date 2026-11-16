@@ -10,10 +10,10 @@ ENV_FILE = PROJECT_ROOT / ".env"
 class Settings(BaseSettings):
     dashscope_api_key: str
     dashscope_base_url: str
-    chat_model: str = "qwen-plus"
-    fast_model: str = "qwen-turbo"
-    embedding_model: str = "text-embedding-v3"
-    rerank_model: str = "gte-rerank-v2"
+    chat_model: str = "qwen-max"
+    fast_model: str = "qwen-flash"
+    embedding_model: str = "text-embedding-v4"
+    rerank_model: str = "qwen3-rerank"
     rerank_base_url: str = (
         "https://dashscope.aliyuncs.com/api/v1/services/"
         "rerank/text-rerank/text-rerank"

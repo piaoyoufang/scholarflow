@@ -1,5 +1,4 @@
 ﻿import request, { API_BASE_URL } from './request'
-import { useAuthStore } from '../stores/auth'
 
 export const authApi = {
   login: (payload) => request.post('/auth/login', payload),
@@ -66,48 +65,66 @@ export const courseApi = {
   updateQaEventStatus: (courseId, eventId, payload) => request.patch(`/courses/${courseId}/qa-events/${eventId}/status`, payload)
 }
 
-// 流式问答：EventSource 只支持 GET，问答是 POST，所以用 fetch + ReadableStream 手动解 SSE 帧
-// callbacks: onStatus(节点进度) / onAnswer(完整答案与引用) / onError(错误信息)；signal 关联 AbortController 实现「停止生成」
-export async function askCourseStream(courseId, payload, { onStatus, onAnswer, onError, signal }) {
-  const auth = useAuthStore()
-  // fetch 不走 axios 拦截器：token 要手动带，401 静默刷新也要自己做（失败后刷新一次并重试）
-  const postStream = () => fetch(`${API_BASE_URL}/courses/${courseId}/ask/stream`, {
+/**
+ * 流式问答：EventSource 无法携带 Authorization 头，因此用 fetch + ReadableStream 手动解析 SSE。
+ * handlers 支持 meta / delta / done / error 四个事件回调，signal 用于「停止生成」。
+ */
+export async function askCourseStream(courseId, payload, handlers = {}, signal) {
+  const response = await fetch(`${API_BASE_URL}/courses/${courseId}/ask/stream`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${auth.accessToken}`
+      Accept: 'text/event-stream',
+      ...(handlers.token ? { Authorization: `Bearer ${handlers.token}` } : {})
     },
     body: JSON.stringify(payload),
     signal
   })
-  let resp = await postStream()
-  if (resp.status === 401) {
-    await auth.refresh()
-    resp = await postStream()
-  }
-  if (!resp.ok) {
-    // 响应头阶段就失败（401/403/404/429）：没有事件流可读，直接按普通错误抛出
-    throw new Error(`请求失败：${resp.status}`)
+
+  if (!response.ok) {
+    let detail = `请求失败（${response.status}）`
+    try {
+      const data = await response.json()
+      if (data?.detail) detail = data.detail
+    } catch {
+      // 响应体不是 JSON 时沿用默认提示
+    }
+    throw new Error(detail)
   }
 
-  const reader = resp.body.pipeThrough(new TextDecoderStream()).getReader()
+  const reader = response.body.getReader()
+  const decoder = new TextDecoder('utf-8')
   let buffer = ''
+  let finished = false
+
   while (true) {
-    const { value, done } = await reader.read()
+    const { done, value } = await reader.read()
     if (done) break
-    buffer += value
-    // SSE 帧以 \n\n 分隔；最后一帧可能不完整，留在 buffer 里等下一块
-    const frames = buffer.split('\n\n')
-    buffer = frames.pop() ?? ''
-    for (const frame of frames) {
-      const eventLine = frame.split('\n').find((l) => l.startsWith('event:'))
-      const dataLine = frame.split('\n').find((l) => l.startsWith('data:'))
-      if (!eventLine || !dataLine) continue
-      const event = eventLine.slice(6).trim()
-      const data = JSON.parse(dataLine.slice(5).trim())
-      if (event === 'status') onStatus?.(data) // 节点进度：正在检索 / 正在生成……
-      else if (event === 'answer') onAnswer?.(data) // 完整答案：结构化输出不支持逐 token，一次性下发
-      else if (event === 'error') onError?.(data.msg)
+    buffer += decoder.decode(value, { stream: true })
+
+    let boundary = buffer.indexOf('\n\n')
+    while (boundary >= 0) {
+      const raw = buffer.slice(0, boundary)
+      buffer = buffer.slice(boundary + 2)
+      boundary = buffer.indexOf('\n\n')
+
+      let event = 'message'
+      const dataLines = []
+      for (const line of raw.split('\n')) {
+        if (line.startsWith('event:')) event = line.slice(6).trim()
+        else if (line.startsWith('data:')) dataLines.push(line.slice(5).trim())
+      }
+      if (!dataLines.length) continue
+
+      let data
+      try {
+        data = JSON.parse(dataLines.join('\n'))
+      } catch {
+        continue
+      }
+      if (event === 'done') finished = true
+      handlers[event]?.(data)
     }
   }
+  return finished
 }

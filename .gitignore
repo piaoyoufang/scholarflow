@@ -45,3 +45,9 @@ pnpm-debug.log*
 
 # generated Streamlit UI drafts
 ui_beautified_*.py
+
+# 本地临时产物：截图用的浏览器配置、分享包、预览图、上传缓存，均不入库
+.tmp-*/
+.trae-html-share-packages/
+login-redesign-preview.png
+.uploads/

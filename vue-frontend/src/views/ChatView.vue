@@ -1,129 +1,181 @@
-﻿<template>
-  <div>
-    <h1 class="page-title">AI 问答</h1><p class="page-desc">基于当前课程资料进行带引用问答，支持多轮追问与回答反馈。</p>
-    <div v-if="!auth.hasCourse" class="empty-state">请先在“我的课程”里创建或选择一门课程。</div>
-    <template v-else>
-      <div class="chat-layout">
-      <el-card class="session-card">
-        <div class="session-header">
-          <span>历史会话</span>
-          <el-button size="small" type="primary" @click="newConversation">新建</el-button>
-        </div>
-        <el-scrollbar class="session-list">
-          <div v-if="!sessions.length" class="session-empty">暂无历史会话</div>
+<template>
+  <div class="chat-page">
+    <!-- 左侧：会话列表 -->
+    <aside class="thread-rail">
+      <button class="new-chat" type="button" @click="newConversation">
+        <span class="plus">＋</span> 新建对话
+      </button>
+      <div class="thread-scroll">
+        <div v-for="group in groupedThreads" :key="group.label" class="thread-group">
+          <p class="group-label">{{ group.label }}</p>
           <button
-            v-for="thread in sessions"
+            v-for="thread in group.items"
             :key="thread.thread_id"
-            class="session-item"
+            type="button"
+            class="thread-item"
             :class="{ active: thread.thread_id === auth.threadId }"
-            @click="openThread(thread.thread_id)"
+            @click="openThread(thread)"
           >
-            <span>{{ thread.title || '新会话' }}</span>
-            <el-button text type="danger" size="small" @click.stop="removeThread(thread.thread_id)">删除</el-button>
+            <span class="thread-title">{{ thread.title || '新会话' }}</span>
+            <span class="thread-remove" title="删除会话" @click.stop="removeThread(thread)">✕</span>
           </button>
-        </el-scrollbar>
-      </el-card>
+        </div>
+        <p v-if="!threads.length" class="thread-empty">还没有历史会话</p>
+      </div>
+    </aside>
 
-      <div class="chat-main">
-      <el-card class="chat-card">
-        <div v-if="!displayMessages.length" class="empty-state">输入课程相关问题，系统会检索知识库并生成带引用回答。</div>
-        <div v-for="(m,i) in displayMessages" :key="i" class="msg" :class="m.role">
-          <template v-if="m.role === 'assistant'">
-            <div class="assistant-head">
-              <span class="assistant-avatar">AI</span>
-              <span class="assistant-name">AI 助手</span>
-              <span class="msg-time">{{ m.time }}</span>
-            </div>
-            <!-- 执行过程条：独立于答案正文，进行中显示当前步骤，完成后折叠为一行摘要 -->
-            <div v-if="m.steps && m.steps.length" class="process" @click="m.raw.showSteps = !m.raw.showSteps">
-              <span v-if="m.pending" class="process-spinner"></span>
-              <span v-else class="process-check">✓</span>
-              <span class="process-title">{{ m.pending ? m.steps[m.steps.length-1] + '…' : `已完成 ${m.steps.length} 个步骤` }}</span>
-              <span class="process-toggle">{{ m.raw.showSteps ? '收起' : '展开' }}</span>
-            </div>
-            <div v-if="m.steps && (m.pending || m.raw.showSteps)" class="process-steps">
-              <div v-for="(s,si) in m.steps" :key="si" class="process-step"><span class="process-check">✓</span>{{ s }}</div>
-            </div>
-            <MarkdownRenderer v-if="m.content" :source="m.content" />
-          </template>
-          <div v-else class="user-side">
-            <div class="user-head">
-              <span class="msg-time">{{ m.time }}</span>
-              <span class="user-avatar">我</span>
-            </div>
-            <div class="user-question">{{ m.content }}</div>
+    <!-- 右侧：对话主区 -->
+    <section class="conversation">
+      <header class="conv-head">
+        <div>
+          <h1>{{ auth.currentCourseName || 'AI 问答' }}</h1>
+          <p>基于课程资料检索后作答，回答会附带引用来源。</p>
+        </div>
+        <span class="conv-badge">RAG · 引用可溯源</span>
+      </header>
+
+      <div ref="scrollRef" class="messages" @scroll="onScroll">
+        <div v-if="!messages.length" class="hero">
+          <h2>今天想学点什么？</h2>
+          <p>我会先检索课程知识库，再给出带出处的回答。</p>
+          <div class="suggestions">
+            <button
+              v-for="item in suggestions"
+              :key="item"
+              type="button"
+              @click="ask(item)"
+            >{{ item }}</button>
           </div>
         </div>
-      </el-card>
-      <el-card v-if="auth.lastQuestion && auth.lastAnswer && !feedbackSubmitted" class="panel-card feedback">
-        <div class="toolbar"><h2>对上一条回答反馈</h2></div>
-        <el-button type="primary" @click="feedbackUp">有帮助</el-button>
-        <el-form class="down-form" :model="down" label-position="top">
-          <el-form-item label="没帮助的原因"><el-select v-model="down.reason"><el-option v-for="r in reasons" :key="r" :label="r" :value="r" /></el-select></el-form-item>
-          <el-form-item label="补充说明"><el-input v-model="down.comment" type="textarea" /></el-form-item>
-          <el-button @click="feedbackDown">没帮助</el-button>
-        </el-form>
-      </el-card>
-      <el-card class="ask-bar">
-        <el-input v-model="question" placeholder="输入课程相关问题" @keyup.enter="ask" />
-        <el-button v-if="!asking" type="primary" @click="ask">发送</el-button>
-        <el-button v-else type="danger" @click="stopAsk">停止生成</el-button>
-      </el-card>
+
+        <article
+          v-for="msg in messages"
+          :key="msg.id"
+          class="turn"
+          :class="msg.role"
+        >
+          <div class="avatar">{{ msg.role === 'user' ? '我' : 'AI' }}</div>
+          <div class="bubble-col">
+            <div class="bubble">
+              <MarkdownRenderer v-if="msg.role === 'assistant'" :source="msg.content" />
+              <p v-else class="user-text">{{ msg.content }}</p>
+              <span v-if="msg.streaming" class="caret"></span>
+            </div>
+
+            <div v-if="msg.role === 'assistant' && msg.content" class="cite-box">
+              <button
+                v-if="msg.citations?.length"
+                type="button"
+                class="cite-head"
+                @click="msg.citesOpen = !msg.citesOpen"
+              >
+                <span>{{ msg.citations.length }} 条引用来源</span>
+                <span class="chev" :class="{ open: msg.citesOpen }">▾</span>
+              </button>
+              <ul v-show="msg.citesOpen" class="cite-list">
+                <li v-for="(cite, index) in msg.citations" :key="index">
+                  <span class="cite-idx">[{{ index + 1 }}]</span>
+                  <div class="cite-body">
+                    <p class="cite-src">
+                      {{ citeName(cite) }}
+                      <span v-if="citeLocator(cite)">· {{ citeLocator(cite) }}</span>
+                    </p>
+                    <p class="cite-quote">{{ citeQuote(cite) }}</p>
+                  </div>
+                </li>
+              </ul>
+            </div>
+
+            <div v-if="msg.role === 'assistant' && !msg.streaming && msg.content" class="msg-actions">
+              <button type="button" @click="copyMessage(msg)">复制</button>
+              <button type="button" @click="regenerate(msg)">重新生成</button>
+              <button type="button" :class="{ on: msg.feedback === 'up' }" @click="feedback(msg, 'up')">有用</button>
+              <button type="button" :class="{ on: msg.feedback === 'down' }" @click="feedback(msg, 'down')">没帮助</button>
+            </div>
+          </div>
+        </article>
+
+        <div v-if="statusText" class="status-line">
+          <span class="dot"></span>{{ statusText }}
+        </div>
       </div>
-      </div>
-    </template>
+
+      <button v-if="!atBottom" type="button" class="to-bottom" @click="scrollToBottom(true)">回到底部</button>
+
+      <footer class="composer">
+        <div class="composer-box">
+          <textarea
+            ref="inputRef"
+            v-model="question"
+            rows="1"
+            placeholder="输入问题，Enter 发送，Shift + Enter 换行"
+            @keydown.enter.exact.prevent="ask"
+            @input="autoGrow"
+          ></textarea>
+          <button v-if="asking" type="button" class="send stop" @click="stop">停止</button>
+          <button v-else type="button" class="send" :disabled="!question.trim()" @click="ask">发送</button>
+        </div>
+        <p class="composer-tip">回答由 AI 基于课程资料生成，请结合引用核对原文。</p>
+      </footer>
+    </section>
+
+    <el-dialog v-model="downDialog" title="告诉我们哪里不好" width="420px" append-to-body>
+      <el-form label-position="top">
+        <el-form-item label="主要原因">
+          <el-select v-model="downForm.reason" placeholder="请选择">
+            <el-option v-for="item in downReasons" :key="item" :label="item" :value="item" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="补充说明（选填）">
+          <el-input v-model="downForm.comment" type="textarea" :rows="3" maxlength="500" show-word-limit />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="downDialog = false">取消</el-button>
+        <el-button type="primary" @click="submitDownFeedback">提交反馈</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
+
 <script setup>
-import { computed, onMounted, reactive, ref, watch } from 'vue'
-import MarkdownRenderer from '../components/MarkdownRenderer.vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { courseApi, threadApi, askCourseStream } from '../api'
+import MarkdownRenderer from '../components/MarkdownRenderer.vue'
+import { askCourseStream, courseApi, threadApi } from '../api'
 import { errorMessage } from '../api/request'
 import { useAuthStore } from '../stores/auth'
-const auth=useAuthStore(); const question=ref(''); const asking=ref(false); const reasons=['答案不准确','没有引用','引用不相关','回答太少','没看懂','其他']; const down=reactive({reason:'答案不准确',comment:''})
-const sessions = ref([])
-const feedbackSubmitted = ref(false)
-function normalizeRole(role) {
-  if (['user', 'human'].includes(role)) return 'user'
-  return 'assistant'
-}
-function normalizeContent(message) {
-  if (typeof message === 'string') return message
-  const content = message?.content || message?.text || message?.answer || message?.data?.content || ''
-  return Array.isArray(content) ? content.map((item) => item?.text || item?.content || String(item)).join('') : content
-}
-const displayMessages = computed(() => {
-  const normalized = (auth.messages || [])
-    .map((message) => ({
-      role: normalizeRole(message.role || message.type),
-      content: normalizeContent(message),
-      // 流式过程字段：steps=执行步骤列表，pending=是否进行中，raw=原始对象引用（折叠状态写回它才能触发响应式）
-      steps: message.steps,
-      pending: message.pending,
-      time: message.time,
-      raw: message
-    }))
-    // pending 中的占位消息 content 还是空的，不能过滤掉，否则看不到执行过程条
-    .filter((message) => message.content || message.pending)
 
-  const hasLastQuestion = normalized.some(
-    (message) => message.role === 'user' && message.content === auth.lastQuestion
-  )
-  const hasLastAnswer = normalized.some(
-    (message) => message.role === 'assistant' && message.content === auth.lastAnswer
-  )
-  if (auth.lastQuestion && auth.lastAnswer && hasLastAnswer && !hasLastQuestion) {
-    const answerIndex = normalized.findIndex(
-      (message) => message.role === 'assistant' && message.content === auth.lastAnswer
-    )
-    normalized.splice(Math.max(answerIndex, 0), 0, {
-      role: 'user',
-      content: auth.lastQuestion
-    })
-  }
-  return normalized
+const auth = useAuthStore()
+
+const threads = ref([])
+const messages = ref([])
+const question = ref('')
+const asking = ref(false)
+const statusText = ref('')
+const scrollRef = ref(null)
+const inputRef = ref(null)
+const atBottom = ref(true)
+const abortController = ref(null)
+
+const downDialog = ref(false)
+const downTarget = ref(null)
+const downForm = reactive({ reason: '', comment: '' })
+const downReasons = ['回答不准确', '引用与原文不符', '内容不完整', '答非所问', '其他']
+
+let seq = 0
+const makeId = () => `${Date.now()}-${seq++}`
+
+const suggestions = computed(() => {
+  const course = auth.currentCourseName || '本课程'
+  return [
+    `帮我梳理《${course}》的核心知识点`,
+    '用通俗的例子解释最难理解的概念',
+    '生成一份 30 分钟的复习提纲',
+    '这个知识点在考试中常怎么考？'
+  ]
 })
+
 // 引用展示前统一清洗：UUID、长十六进制串属于内部标识，不能出现在前端
 const UUID_RE = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi
 const HEX_ONLY_RE = /^(?:[0-9a-f]{12,}|[0-9a-f]+[-_][0-9a-f-_]+)$/i
@@ -136,252 +188,728 @@ function cleanCiteText(value) {
 }
 
 function citeName(cite) {
-  const name = cleanCiteText(cite.source_name || cite.source)
+  const name = cleanCiteText(cite?.source_name)
   return !name || HEX_ONLY_RE.test(name) ? '课程资料' : name
 }
 
 function citeLocator(cite) {
-  const locator = cleanCiteText(cite.locator)
+  const locator = cleanCiteText(cite?.locator)
   return !locator || HEX_ONLY_RE.test(locator) ? '' : locator
 }
 
 function citeQuote(cite) {
-  return cleanCiteText(cite.quote || cite.content)
+  return cleanCiteText(cite?.quote)
 }
 
-function withCitations(result){ let txt=String(result.answer ?? JSON.stringify(result)); const cs=result.citations||[]; if(cs.length){ txt+='\n\n#### 引用来源\n'+cs.map(c=>`- ${citeName(c)} ${citeLocator(c)}: ${citeQuote(c)}`).join('\n') } return txt }
-// 流式问答：进度步骤放在独立的「过程条」里（不进答案正文）；
-// 答案到达后用打字机效果逐段揭示——结构化输出只能整段返回，前端补一层逐字观感
-const abortCtrl = ref(null)
-// 消息时间戳：后端历史只存 role/content，时间由前端在收发时打上
-function nowTime(){ return new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }) }
-function typewrite(target, fullText){
-  return new Promise((resolve)=>{
-    let i=0
-    const step=Math.max(2, Math.ceil(fullText.length/120))  // 约 120 帧出完，长答案也不会拖太久
-    const timer=setInterval(()=>{
-      i=Math.min(fullText.length, i+step)
-      target.content=fullText.slice(0,i)
-      if(i>=fullText.length){ clearInterval(timer); resolve() }
-    },16)
-  })
-}
-async function ask(){
-  if(!question.value.trim() || asking.value) return
-  const q=question.value.trim(); feedbackSubmitted.value=true; auth.lastQuestion=q; auth.messages.push({role:'user',content:q,time:nowTime()}); question.value=''; asking.value=true
-  auth.messages.push({role:'assistant', content:'', steps:['正在理解问题'], pending:true, showSteps:true})
-  const pending=auth.messages[auth.messages.length-1]  // 从响应式数组里取回代理对象，改它才会触发界面更新
-  auth.persist()
-  abortCtrl.value=new AbortController()
-  let answerPayload=null, streamError=''
-  try{
-    await askCourseStream(auth.currentCourseId,{question:q,thread_id:auth.threadId},{
-      signal:abortCtrl.value.signal,
-      onStatus:(s)=>{ if(pending.steps[pending.steps.length-1]!==s.msg) pending.steps.push(s.msg) },
-      onAnswer:(data)=>{ answerPayload=withCitations(data) },
-      onError:(msg)=>{ streamError=msg }
-    })
-    pending.pending=false
-    if(answerPayload){
-      await typewrite(pending, answerPayload)   // 打字机播完再 persist，否则中途落盘的是半截答案
-      auth.lastAnswer=answerPayload; feedbackSubmitted.value=false
-    } else if(streamError){
-      pending.content=`请求失败：${streamError}`
+const groupedThreads = computed(() => {
+  const startOfToday = new Date()
+  startOfToday.setHours(0, 0, 0, 0)
+  const today = startOfToday.getTime()
+  const groups = [
+    { label: '今天', items: [] },
+    { label: '昨天', items: [] },
+    { label: '更早', items: [] }
+  ]
+  for (const thread of threads.value) {
+    const raw = String(thread.updated_at || thread.created_at || '').replace(/([+-]\d{2})(\d{2})$/, '$1:$2')
+    const time = new Date(raw).getTime()
+    const bucket = !Number.isFinite(time) || time < today - 86400000 ? 2 : time < today ? 1 : 0
+    groups[bucket].items.push(thread)
+  }
+  return groups.filter((group) => group.items.length)
+})
+
+function normalizeHistory(history) {
+  const list = []
+  for (const item of history || []) {
+    const role = item.role || (item.type === 'ai' || item.type === 'assistant' ? 'assistant' : 'user')
+    const content = typeof item.content === 'string' ? item.content : item.content?.text || ''
+    if (!content) continue
+    const message = {
+      id: makeId(),
+      role,
+      content,
+      citations: [],
+      streaming: false,
+      question: '',
+      feedback: '',
+      citesOpen: false
     }
-    // 先 persist 再 loadThreads：axios 请求拦截器每次都会 restoreFromStorage() 重建 messages 数组，
-    // 不落盘的话本地旧快照会把刚渲染出的答案整个覆盖掉
-    auth.persist()
-    await loadThreads()
-  }catch(e){
-    // AbortError 是用户主动点「停止生成」，不算失败
-    pending.pending=false
-    pending.content=e?.name==='AbortError' ? '已停止生成。' : `请求失败：${errorMessage(e)}`
-  }finally{ if(!pending.time) pending.time=nowTime(); asking.value=false; abortCtrl.value=null; auth.persist() }
+    if (role === 'assistant' && list.length) {
+      const previous = [...list].reverse().find((entry) => entry.role === 'user')
+      message.question = previous?.content || ''
+    }
+    list.push(message)
+  }
+  return list
 }
-function stopAsk(){ abortCtrl.value?.abort() }
+
+function syncAuthMessages() {
+  const history = messages.value
+    .filter((msg) => !msg.streaming && msg.content)
+    .map((msg) => ({ role: msg.role, content: msg.content }))
+  auth.messages = history
+  const lastAnswer = [...messages.value].reverse().find((msg) => msg.role === 'assistant' && msg.content)
+  const lastQuestion = [...messages.value].reverse().find((msg) => msg.role === 'user' && msg.content)
+  auth.lastAnswer = lastAnswer?.content || ''
+  auth.lastQuestion = lastQuestion?.content || ''
+  auth.persist()
+}
+
 async function loadThreads() {
   try {
     const { data } = await threadApi.list()
-    sessions.value = data.threads || []
-  } catch (e) {
-    ElMessage.error(errorMessage(e))
+    threads.value = data.threads || []
+  } catch (error) {
+    ElMessage.error(errorMessage(error))
   }
 }
-async function openThread(threadId) {
-  if (threadId === auth.threadId) return
+
+async function openThread(thread) {
+  if (asking.value) return
+  if (thread.thread_id === auth.threadId && messages.value.length) return
   try {
-    const { data } = await threadApi.detail(threadId)
-    auth.setThread(data.thread_id, data.history || [])
-    const messages = displayMessages.value
-    const lastUser = [...messages].reverse().find((message) => message.role === 'user')
-    const lastAssistant = [...messages].reverse().find((message) => message.role === 'assistant')
-    auth.lastQuestion = lastUser?.content || ''
-    auth.lastAnswer = lastAssistant?.content || ''
-    feedbackSubmitted.value = true
-    auth.persist()
-  } catch (e) {
-    ElMessage.error(errorMessage(e))
+    const { data } = await threadApi.detail(thread.thread_id)
+    auth.setThread(thread.thread_id, data.history || [])
+    messages.value = normalizeHistory(data.history)
+    statusText.value = ''
+    scrollToBottom()
+  } catch (error) {
+    ElMessage.error(errorMessage(error))
   }
 }
+
 function newConversation() {
+  if (asking.value) return
   auth.newThread()
-  feedbackSubmitted.value = true
-  ElMessage.success('已创建新会话')
+  messages.value = []
+  statusText.value = ''
+  question.value = ''
+  autoGrow()
+  nextTick(() => inputRef.value?.focus())
 }
-async function removeThread(threadId) {
+
+async function removeThread(thread) {
   try {
-    await ElMessageBox.confirm('删除后无法恢复该会话记录，确定继续吗？', '删除会话', { type: 'warning' })
-    await threadApi.remove(threadId)
-    if (threadId === auth.threadId) auth.newThread()
-    await loadThreads()
+    await ElMessageBox.confirm('删除后该会话的历史消息将无法恢复，确定删除吗？', '删除会话', {
+      confirmButtonText: '删除',
+      cancelButtonText: '取消',
+      type: 'warning'
+    })
+  } catch {
+    return
+  }
+  try {
+    await threadApi.remove(thread.thread_id)
+    threads.value = threads.value.filter((item) => item.thread_id !== thread.thread_id)
+    if (thread.thread_id === auth.threadId) newConversation()
     ElMessage.success('会话已删除')
-  } catch (e) {
-    if (e !== 'cancel' && e !== 'close') ElMessage.error(errorMessage(e))
+  } catch (error) {
+    ElMessage.error(errorMessage(error))
   }
 }
-watch(() => auth.currentCourseId, loadThreads)
-onMounted(loadThreads)
-async function feedbackUp(){ await courseApi.feedback(auth.currentCourseId,{thread_id:auth.threadId,question:auth.lastQuestion,answer:auth.lastAnswer,rating:'up',reason:'',comment:''}); feedbackSubmitted.value=true; ElMessage.success('感谢反馈') }
-async function feedbackDown(){ await courseApi.feedback(auth.currentCourseId,{thread_id:auth.threadId,question:auth.lastQuestion,answer:auth.lastAnswer,rating:'down',reason:down.reason,comment:down.comment}); feedbackSubmitted.value=true; ElMessage.success('反馈已记录') }
+
+function onScroll() {
+  const el = scrollRef.value
+  if (!el) return
+  atBottom.value = el.scrollHeight - el.scrollTop - el.clientHeight < 80
+}
+
+function scrollToBottom(smooth = false) {
+  nextTick(() => {
+    const el = scrollRef.value
+    if (!el) return
+    el.scrollTo({ top: el.scrollHeight, behavior: smooth ? 'smooth' : 'auto' })
+  })
+}
+
+function autoGrow() {
+  const el = inputRef.value
+  if (!el) return
+  el.style.height = 'auto'
+  el.style.height = `${Math.min(el.scrollHeight, 160)}px`
+}
+
+async function ask(text) {
+  if (!auth.currentCourseId) {
+    ElMessage.warning('请先选择课程')
+    return
+  }
+  const content = (typeof text === 'string' ? text : question.value).trim()
+  if (!content || asking.value) return
+
+  question.value = ''
+  autoGrow()
+
+  const userMessage = {
+    id: makeId(),
+    role: 'user',
+    content,
+    citations: [],
+    streaming: false,
+    question: '',
+    feedback: '',
+    citesOpen: false
+  }
+  const answerMessage = {
+    id: makeId(),
+    role: 'assistant',
+    content: '',
+    citations: [],
+    streaming: true,
+    question: content,
+    feedback: '',
+    citesOpen: false
+  }
+  messages.value.push(userMessage, answerMessage)
+  // ref 数组里的对象需要取回响应式代理再修改，直接改原始对象不会触发视图更新
+  const answerRef = messages.value[messages.value.length - 1]
+  asking.value = true
+  statusText.value = '正在检索课程知识库…'
+  atBottom.value = true
+  scrollToBottom()
+
+  const controller = new AbortController()
+  abortController.value = controller
+
+  // 模型逐 token 推送，直接改响应式内容会频繁重渲染 Markdown，这里按 60ms 节流刷新
+  let pending = ''
+  let lastFlush = 0
+  const flush = (force = false) => {
+    const now = performance.now()
+    if (!force && now - lastFlush < 60) return
+    lastFlush = now
+    answerRef.content = pending
+    if (atBottom.value) scrollToBottom()
+  }
+
+  try {
+    await askCourseStream(
+      auth.currentCourseId,
+      { question: content, thread_id: auth.threadId },
+      {
+        token: auth.accessToken,
+        meta: (data) => {
+          if (data.stage === 'answering') statusText.value = '正在生成回答…'
+        },
+        delta: (data) => {
+          pending += data.text || ''
+          flush()
+        },
+        done: (data) => {
+          if (data.answer) pending = data.answer
+          flush(true)
+          answerRef.citations = data.citations || []
+        }
+      },
+      controller.signal
+    )
+    answerRef.streaming = false
+    statusText.value = ''
+    syncAuthMessages()
+    loadThreads()
+  } catch (error) {
+    answerRef.streaming = false
+    statusText.value = ''
+    if (error?.name === 'AbortError') {
+      if (!answerRef.content.trim()) {
+        messages.value = messages.value.filter((msg) => msg.id !== answerRef.id)
+      }
+      ElMessage.info('已停止生成')
+    } else {
+      answerRef.content = answerRef.content || `请求失败：${errorMessage(error)}`
+      ElMessage.error(errorMessage(error))
+    }
+    syncAuthMessages()
+  } finally {
+    asking.value = false
+    abortController.value = null
+  }
+}
+
+function stop() {
+  abortController.value?.abort()
+}
+
+async function copyMessage(msg) {
+  try {
+    await navigator.clipboard.writeText(msg.content)
+    ElMessage.success('已复制回答')
+  } catch {
+    ElMessage.error('复制失败，请手动选择文本复制')
+  }
+}
+
+function regenerate(msg) {
+  if (asking.value) return
+  const index = messages.value.findIndex((item) => item.id === msg.id)
+  if (index < 0) return
+  const questionText = msg.question || messages.value[index - 1]?.content
+  if (!questionText) return
+  const userIndex = index > 0 && messages.value[index - 1].role === 'user' ? index - 1 : index
+  messages.value.splice(userIndex)
+  syncAuthMessages()
+  ask(questionText)
+}
+
+function feedback(msg, rating) {
+  if (!msg.question) return
+  if (rating === 'down') {
+    downTarget.value = msg
+    downForm.reason = ''
+    downForm.comment = ''
+    downDialog.value = true
+    return
+  }
+  submitFeedback(msg, 'up', '', '')
+}
+
+function submitDownFeedback() {
+  if (!downTarget.value) return
+  const { reason, comment } = downForm
+  downDialog.value = false
+  submitFeedback(downTarget.value, 'down', reason, comment)
+}
+
+async function submitFeedback(msg, rating, reason, comment) {
+  try {
+    await courseApi.feedback(auth.currentCourseId, {
+      thread_id: auth.threadId,
+      question: msg.question,
+      answer: msg.content,
+      rating,
+      reason,
+      comment
+    })
+    msg.feedback = rating
+    ElMessage.success(rating === 'up' ? '感谢反馈' : '已记录，我们会持续改进')
+  } catch (error) {
+    ElMessage.error(errorMessage(error))
+  }
+}
+
+watch(
+  () => messages.value.length,
+  () => {
+    if (atBottom.value) scrollToBottom()
+  }
+)
+
+onMounted(() => {
+  messages.value = normalizeHistory(auth.messages)
+  loadThreads()
+})
+
+onBeforeUnmount(() => {
+  abortController.value?.abort()
+})
 </script>
+
 <style scoped>
-.chat-layout { max-width: 1180px; margin: 0 auto; display: grid; grid-template-columns: 250px minmax(0, 1fr); gap: 16px; }
-.session-card { height: 620px; border-radius: 22px; }
-.session-header { display: flex; align-items: center; justify-content: space-between; padding-bottom: 12px; border-bottom: 1px solid rgba(148,163,184,.16); color: #fff; font-weight: 900; }
-.session-list { height: 545px; margin-top: 10px; }
-.session-empty { padding: 28px 8px; color: #94a3b8; text-align: center; font-size: 13px; }
-.session-item { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px; margin-bottom: 6px; border: 1px solid transparent; border-radius: 12px; background: transparent; color: #cbd5e1; cursor: pointer; text-align: left; }
-.session-item > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; }
-.session-item:hover, .session-item.active { background: rgba(37,99,235,.16); border-color: rgba(96,165,250,.30); color: #fff; }
-.chat-main { min-width: 0; }
-.chat-card {
-  min-height: 430px;
-  margin: 0 0 16px;
-  border-radius: 22px;
-}
-.msg {
-  width: fit-content;
-  max-width: min(760px, 76%);
-  margin: 16px 0;
-  padding: 14px 16px;
-  border-radius: 18px;
-  line-height: 1.8;
-}
-.msg.user {
-  margin-left: auto;
-  background: transparent;
-  padding: 0;
-}
-.user-side { display: flex; flex-direction: column; align-items: flex-end; }
-.user-head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 6px;
-}
-.user-avatar {
-  width: 26px;
-  height: 26px;
-  border-radius: 50%;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(37,99,235,.25);
-  border: 1px solid rgba(96,165,250,.4);
-  color: #93c5fd;
-  font-size: 12px;
-  font-weight: 900;
-}
-.msg-time { font-size: 12px; color: #64748b; }
-.user-question {
-  white-space: pre-wrap;
-  word-break: break-word;
-  font-weight: 700;
-  padding: 12px 16px;
-  border-radius: 18px;
-  border-top-right-radius: 8px;
-  background: linear-gradient(135deg, #2563eb, #1d4ed8);
-  color: #fff;
-  box-shadow: 0 12px 26px rgba(37, 99, 235, .22);
-}
-.msg.assistant {
-  width: 100%;
-  max-width: 100%;
-  padding: 4px 0;
-  background: transparent;
-  color: #e2e8f0;
-}
-.assistant-head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 8px;
-}
-.assistant-avatar {
-  width: 26px;
-  height: 26px;
-  border-radius: 50%;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background: linear-gradient(135deg, #2563eb, #7c3aed);
-  color: #fff;
-  font-size: 11px;
-  font-weight: 900;
-}
-.assistant-name { font-size: 13px; font-weight: 900; color: #e2e8f0; opacity: .95; }
-.process {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: fit-content;
-  margin-bottom: 8px;
-  padding: 6px 12px;
-  border: 1px solid rgba(148,163,184,.20);
-  border-radius: 10px;
-  background: rgba(148,163,184,.07);
-  color: #94a3b8;
-  font-size: 12px;
-  cursor: pointer;
-  user-select: none;
-}
-.process-title { font-weight: 700; }
-.process-toggle { opacity: .6; }
-.process-check { color: #34d399; font-weight: 900; }
-.process-spinner {
-  width: 12px;
-  height: 12px;
-  border: 2px solid rgba(148,163,184,.35);
-  border-top-color: #60a5fa;
-  border-radius: 50%;
-  animation: spin .8s linear infinite;
-}
-@keyframes spin { to { transform: rotate(360deg); } }
-.process-steps {
-  margin: 0 0 10px 4px;
-  padding-left: 10px;
-  border-left: 2px solid rgba(148,163,184,.18);
-  color: #94a3b8;
-  font-size: 12px;
-  line-height: 2;
-}
-.process-step { display: flex; align-items: center; gap: 6px; }
-.ask-bar {
-  margin: 0;
+.chat-page {
   display: grid;
-  grid-template-columns: 1fr 110px;
+  grid-template-columns: 236px minmax(0, 1fr);
+  gap: 18px;
+  height: calc(100dvh - 148px);
+  min-height: 560px;
+}
+
+/* ---------- 左侧会话栏 ---------- */
+.thread-rail {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 10px;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.035);
+  backdrop-filter: blur(16px);
+}
+
+.new-chat {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 40px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.new-chat:hover {
+  background: rgba(139, 92, 246, 0.24);
+  border-color: rgba(167, 139, 250, 0.5);
+}
+.new-chat .plus { font-size: 15px; color: #c4b5fd; }
+
+.thread-scroll { flex: 1; overflow-y: auto; padding-right: 2px; }
+.thread-group + .thread-group { margin-top: 12px; }
+.group-label {
+  margin: 4px 6px 6px;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: rgba(255, 255, 255, 0.38);
+}
+
+.thread-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 8px 10px;
+  margin-bottom: 2px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 12.5px;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+.thread-item:hover { background: rgba(255, 255, 255, 0.07); color: #fff; }
+.thread-item.active {
+  background: linear-gradient(120deg, rgba(139, 92, 246, 0.32), rgba(236, 72, 153, 0.18));
+  color: #fff;
+  box-shadow: inset 0 0 0 1px rgba(196, 181, 253, 0.32);
+}
+.thread-title {
+  flex: 1;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.thread-remove {
+  opacity: 0;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.5);
+  transition: opacity 0.18s ease;
+}
+.thread-item:hover .thread-remove { opacity: 1; }
+.thread-remove:hover { color: #fda4af; }
+.thread-empty {
+  margin: 18px 6px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.32);
+  text-align: center;
+}
+
+/* ---------- 主对话区 ---------- */
+.conversation {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(18px);
+  overflow: hidden;
+}
+
+.conv-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 22px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+.conv-head h1 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: #fff;
+}
+.conv-head p {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.5);
+}
+.conv-badge {
+  flex-shrink: 0;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(196, 181, 253, 0.3);
+  background: rgba(139, 92, 246, 0.16);
+  color: #ddd6fe;
+  font-size: 11px;
+}
+
+.messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 22px 24px 12px;
+  scroll-behavior: smooth;
+}
+
+.hero { max-width: 620px; margin: 6vh auto 0; text-align: center; }
+.hero h2 {
+  margin: 0 0 8px;
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  background: linear-gradient(120deg, #fff, #e9d5ff 60%, #fbcfe8);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.hero p { margin: 0 0 22px; font-size: 13px; color: rgba(255, 255, 255, 0.5); }
+.suggestions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.suggestions button {
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.045);
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 12.5px;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.suggestions button:hover {
+  transform: translateY(-2px);
+  border-color: rgba(196, 181, 253, 0.42);
+  background: rgba(139, 92, 246, 0.16);
+  color: #fff;
+}
+
+.turn {
+  display: flex;
   gap: 12px;
+  margin-bottom: 22px;
+  max-width: 900px;
 }
-.feedback {
-  max-width: 1180px;
-  margin: 0 auto 16px;
+.turn.user { flex-direction: row-reverse; margin-left: auto; }
+.avatar {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.12);
 }
-.down-form { margin-top:14px; }
-@media (max-width: 900px) {
-  .chat-layout { grid-template-columns: 1fr; }
-  .session-card { height: auto; }
-  .session-list { height: 180px; }
-  .msg { max-width: 92%; }
-  .ask-bar { grid-template-columns: 1fr; }
+.turn.assistant .avatar {
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.85), rgba(236, 72, 153, 0.75));
+  border-color: transparent;
+}
+.bubble-col { min-width: 0; flex: 1; }
+.turn.user .bubble-col { flex: 0 1 auto; display: flex; flex-direction: column; align-items: flex-end; }
+
+.bubble {
+  display: inline-block;
+  max-width: 100%;
+  padding: 12px 16px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+  font-size: 13.5px;
+  line-height: 1.75;
+  color: rgba(255, 255, 255, 0.9);
+  overflow-wrap: anywhere;
+}
+.turn.assistant .bubble { background: transparent; border-color: transparent; padding: 2px 0; }
+.turn.user .bubble {
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.34), rgba(236, 72, 153, 0.24));
+  border-color: rgba(196, 181, 253, 0.32);
+  color: #fff;
+}
+.user-text { margin: 0; white-space: pre-wrap; }
+
+.caret {
+  display: inline-block;
+  width: 7px;
+  height: 15px;
+  margin-left: 2px;
+  vertical-align: -2px;
+  background: #c4b5fd;
+  animation: blink 1s steps(2, start) infinite;
+}
+@keyframes blink { 50% { opacity: 0; } }
+
+.cite-box { margin-top: 10px; }
+.cite-head {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.045);
+  color: rgba(255, 255, 255, 0.66);
+  font-size: 11.5px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.cite-head:hover { color: #fff; border-color: rgba(196, 181, 253, 0.4); }
+.chev { transition: transform 0.2s ease; }
+.chev.open { transform: rotate(180deg); }
+.cite-list {
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 8px;
+}
+.cite-list li {
+  display: flex;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.035);
+}
+.cite-idx { flex-shrink: 0; font-size: 11px; color: #c4b5fd; }
+.cite-body { min-width: 0; }
+.cite-src { margin: 0 0 4px; font-size: 11.5px; color: rgba(255, 255, 255, 0.78); }
+.cite-quote {
+  margin: 0;
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: rgba(255, 255, 255, 0.5);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.msg-actions {
+  display: flex;
+  gap: 14px;
+  margin-top: 8px;
+  opacity: 0;
+  transition: opacity 0.18s ease;
+}
+.turn:hover .msg-actions { opacity: 1; }
+.msg-actions button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: rgba(255, 255, 255, 0.42);
+  font-size: 11.5px;
+  cursor: pointer;
+  transition: color 0.18s ease;
+}
+.msg-actions button:hover { color: #c4b5fd; }
+.msg-actions button.on { color: #f0abfc; }
+
+.status-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 10px 42px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.5);
+}
+.status-line .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #a78bfa;
+  box-shadow: 0 0 10px #8b5cf6;
+  animation: pulse 1.2s ease-in-out infinite;
+}
+@keyframes pulse { 50% { opacity: 0.25; transform: scale(0.8); } }
+
+.to-bottom {
+  position: absolute;
+  left: 50%;
+  bottom: 118px;
+  transform: translateX(-50%);
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(30, 24, 58, 0.9);
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 11.5px;
+  cursor: pointer;
+  backdrop-filter: blur(12px);
+}
+.to-bottom:hover { color: #fff; border-color: rgba(196, 181, 253, 0.45); }
+
+/* ---------- 输入区 ---------- */
+.composer { padding: 10px 22px 16px; }
+.composer-box {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  padding: 8px 8px 8px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.05);
+  transition: all 0.2s ease;
+}
+.composer-box:focus-within {
+  border-color: rgba(167, 139, 250, 0.6);
+  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.14), 0 0 22px rgba(139, 92, 246, 0.22);
+}
+.composer-box textarea {
+  flex: 1;
+  min-height: 24px;
+  max-height: 160px;
+  padding: 6px 0;
+  border: 0;
+  outline: none;
+  resize: none;
+  background: transparent;
+  color: #fff;
+  font-family: inherit;
+  font-size: 13.5px;
+  line-height: 1.6;
+}
+.composer-box textarea::placeholder { color: rgba(255, 255, 255, 0.38); }
+.send {
+  flex-shrink: 0;
+  height: 36px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--primary-grad);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.send:hover:not(:disabled) { transform: translateY(-1px); filter: brightness(1.08); }
+.send:disabled { opacity: 0.42; cursor: not-allowed; }
+.send.stop { background: rgba(244, 63, 94, 0.24); border: 1px solid rgba(244, 63, 94, 0.45); color: #fda4af; }
+.composer-tip {
+  margin: 8px 2px 0;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.34);
+  text-align: center;
+}
+
+.bubble :deep(.markdown-body) { color: inherit; }
+.bubble :deep(pre) {
+  background: rgba(0, 0, 0, 0.32);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  padding: 10px 12px;
+  overflow-x: auto;
+}
+.bubble :deep(code) { font-size: 12.5px; }
+
+@media (max-width: 960px) {
+  .chat-page { grid-template-columns: 1fr; height: auto; }
+  .thread-rail { max-height: 200px; }
+  .messages { padding: 16px; }
+  .suggestions { grid-template-columns: 1fr; }
 }
 </style>

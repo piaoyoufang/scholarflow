@@ -6,7 +6,7 @@
     </el-breadcrumb>
 
     <h1 class="page-title">我的课程</h1>
-    <p class="page-desc">{{ auth.isAdmin ? '管理员可进入任意课程查看知识库、问答分析与课程看板，也可以试用 AI 问答。' : (auth.isTeacher ? '创建或选择当前课程，后续知识库、问答、出题和分析都会围绕这门课工作。' : '选择你已加入的课程，后续 AI 问答、学习计划和自动出题都会围绕这门课工作。') }}</p>
+    <p class="page-desc">{{ auth.isAdmin ? '管理员可进入任意课程查看知识库、问答分析与课程看板，也可以创建自己的课程。' : (auth.isTeacher ? '创建或选择当前课程，后续知识库、问答、出题和分析都会围绕这门课工作。' : '选择你已加入的课程，后续 AI 问答、学习计划和自动出题都会围绕这门课工作。') }}</p>
 
     <el-card v-if="auth.isTeacher" class="panel-card create-card">
       <template #header>
@@ -85,7 +85,7 @@
       </el-card>
     </div>
 
-    <el-card v-if="courses.length" class="panel-card table-card">
+    <el-card class="panel-card table-card" v-if="courses.length">
       <template #header><div class="card-header"><span>课程明细</span><el-tag effect="plain">{{ courses.length }} 门课程</el-tag></div></template>
       <el-table :data="courses" stripe style="width:100%">
         <el-table-column prop="course_name" label="课程名称" min-width="180" />
@@ -224,29 +224,29 @@ onMounted(loadCourses)
 <style scoped>
 .courses-page { max-width: 1180px; margin: 0 auto; }
 .breadcrumb { margin-bottom: 18px; }
-.breadcrumb :deep(.el-breadcrumb__inner) { color: #cbd5e1; font-weight: 700; }
+.breadcrumb :deep(.el-breadcrumb__inner) { color: rgba(255,255,255,.5); font-weight: 500; font-size: 12px; }
 .create-card { margin-bottom: 24px; }
-.card-header { display: flex; align-items: center; justify-content: space-between; font-weight: 900; color: #0f172a; }
+.card-header { display: flex; align-items: center; justify-content: space-between; font-weight: 600; color: #fff; font-size: 14px; }
 .course-form, .join-form { display: grid; gap: 4px; }
 .join-action-col { display: flex; align-items: flex-end; padding-bottom: 18px; }
 .toolbar { color:#fff; }
 .toolbar h2 { margin: 0; font-size: 20px; font-weight: 900; }
-.course-empty { padding: 46px 0; border: 1px dashed rgba(147,197,253,.55); border-radius: 22px; background: rgba(239,246,255,.08); }
-.course-empty :deep(.el-empty__description p) { color: #cbd5e1; }
+.course-empty { padding: 40px 0; border: 1px dashed rgba(255,255,255,.2); border-radius: 16px; background: rgba(255,255,255,.04); }
+.course-empty :deep(.el-empty__description p) { color: rgba(255,255,255,.6); }
 .course-grid { margin-top: 8px; }
-.course-card { cursor:pointer; min-height: 196px; border: 1px solid rgba(226,232,240,.72); transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease; position: relative; overflow: hidden; }
-.course-card::before { content: ''; position: absolute; inset: 0 0 auto 0; height: 4px; background: transparent; transition: .2s ease; }
-.course-card:hover { transform: translateY(-4px); border-color:#60a5fa; box-shadow:0 18px 42px rgba(59,130,246,.24); }
-.course-card.active { border-color:#3b82f6; box-shadow:0 20px 48px rgba(59,130,246,.30); }
-.course-card.active::before { background: linear-gradient(90deg,#2563eb,#06b6d4); }
+.course-card { cursor:pointer; min-height: 196px; transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease; position: relative; overflow: hidden; }
+.course-card::before { content: ''; position: absolute; inset: 0 0 auto 0; height: 2px; background: transparent; transition: .2s ease; }
+.course-card:hover { transform: translateY(-3px); border-color: rgba(255,255,255,.28) !important; box-shadow: 0 24px 48px -26px rgba(236,72,153,.6); }
+.course-card.active { border-color: rgba(240,171,252,.55) !important; box-shadow: 0 0 0 1px rgba(240,171,252,.35), 0 24px 50px -26px rgba(236,72,153,.8); }
+.course-card.active::before { background: linear-gradient(90deg,#8b5cf6,#ec4899); }
 .course-top { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
-.course-card h3 { margin:0 0 10px; color:#0f172a; font-size: 18px; font-weight: 900; }
-.course-card p { color:#64748b; line-height:1.75; min-height:52px; margin: 0; }
-.invite-code { margin-top: 18px; display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 14px; background: #eff6ff; border: 1px solid #bfdbfe; color: #1e40af; }
-.invite-code span { color: #64748b; font-size: 12px; font-weight: 800; }
-.invite-code strong { letter-spacing: .12em; font-size: 15px; }
+.course-card h3 { margin:0 0 8px; color:#fff; font-size: 15px; font-weight: 600; letter-spacing: -.01em; }
+.course-card p { color: rgba(255,255,255,.62); line-height:1.7; min-height:52px; margin: 0; font-size: 12.5px; }
+.invite-code { margin-top: 16px; display: flex; align-items: center; gap: 10px; padding: 8px 11px; border-radius: 10px; background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.16); color: #fbcfe8; }
+.invite-code span { color: rgba(255,255,255,.5); font-size: 11px; font-weight: 500; }
+.invite-code strong { letter-spacing: .12em; font-size: 13px; font-weight: 700; }
 .table-code { display: flex; align-items: center; gap: 8px; }
-.table-code span { font-weight: 900; color: #1d4ed8; letter-spacing: .08em; }
+.table-code span { font-weight: 600; color: #f0abfc; letter-spacing: .08em; }
 .table-card { margin-top: 22px; }
 /* 新增：移动端响应式，仅作用于 <768px，移除课程页多余高度/留白并优化课程码布局 */
 @media (max-width: 768px) {

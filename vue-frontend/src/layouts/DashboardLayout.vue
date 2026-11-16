@@ -40,8 +40,8 @@
         <el-button class="mobile-menu-btn" type="primary" plain @click="mobileMenuVisible = true">菜单</el-button>
         <div class="topbar-title-block">
           <div class="top-title">{{ $route.meta.title || '高校课程AI学习助手平台项目' }}</div>
-          <div v-if="auth.currentCourseId" class="course-line">当前课程：{{ auth.currentCourseName }} ｜ 课程角色：{{ roleLabel(auth.currentCourseRole) }}</div>
-          <div v-else class="course-line">{{ auth.isAdmin ? '管理员工作台：账号、课程与全平台数据统计' : (auth.isTeacher ? '请先进入“我的课程”创建或选择课程' : '请先进入“我的课程”选择已加入的课程') }}</div>
+          <div class="course-line" v-if="auth.currentCourseId">当前课程：{{ auth.currentCourseName }} ｜ 课程角色：{{ roleLabel(auth.currentCourseRole) }}</div>
+          <div class="course-line" v-else>{{ auth.isAdmin ? '管理员工作台：账号、课程与全平台数据统计' : (auth.isTeacher ? '请先进入“我的课程”创建或选择课程' : '请先进入“我的课程”选择已加入的课程') }}</div>
         </div>
       </el-header>
       <el-main class="main"><router-view /></el-main>
@@ -50,12 +50,6 @@
     <el-drawer v-model="mobileMenuVisible" title="高校课程AI学习助手" direction="ltr" size="78%" class="mobile-drawer">
       <el-menu router :default-active="$route.path" background-color="transparent" text-color="#cbd5e1" active-text-color="#ffffff" @select="mobileMenuVisible = false">
         <el-menu-item index="/courses">我的课程</el-menu-item>
-        <template v-if="auth.isAdmin">
-          <el-menu-item index="/admin/stats">数据统计</el-menu-item>
-          <el-menu-item index="/admin/accounts">账号管理</el-menu-item>
-          <el-menu-item index="/admin/courses">课程管理</el-menu-item>
-          <el-menu-item index="/admin/invites">教师邀请码</el-menu-item>
-        </template>
         <template v-if="auth.isTeacher">
           <el-menu-item index="/documents">课程知识库</el-menu-item>
         </template>
@@ -67,6 +61,10 @@
           <el-menu-item index="/analytics">问答分析</el-menu-item>
           <el-menu-item index="/dashboard">课程看板</el-menu-item>
         </template>
+        <el-menu-item v-if="auth.isAdmin" index="/admin/stats">数据统计</el-menu-item>
+        <el-menu-item v-if="auth.isAdmin" index="/admin/accounts">账号管理</el-menu-item>
+        <el-menu-item v-if="auth.isAdmin" index="/admin/courses">课程管理</el-menu-item>
+        <el-menu-item v-if="auth.isAdmin" index="/admin/invites">教师邀请码</el-menu-item>
       </el-menu>
       <el-button class="mobile-logout" type="danger" plain @click="logout">退出登录</el-button>
     </el-drawer>
@@ -100,29 +98,29 @@ async function logout() {
 
 <style scoped>
 .app-layout { min-height: 100vh; }
-.aside { padding: 22px 14px; background: rgba(15,23,42,.95); border-right: 1px solid rgba(255,255,255,.08); display: flex; flex-direction: column; }
-.brand { display: flex; gap: 12px; align-items: center; padding: 8px 10px 26px; }
-.brand-mark { width: 44px; height: 44px; border-radius: 15px; display: grid; place-items: center; background: linear-gradient(135deg,#3b82f6,#06b6d4); font-weight: 900; box-shadow: 0 12px 26px rgba(37,99,235,.30); }
-.brand-name { font-weight: 900; color: #fff; }
-.brand-sub { font-size: 12px; color: #94a3b8; margin-top: 3px; }
-:deep(.el-menu) { border-right: 0; display: grid; gap: 6px; }
-:deep(.el-menu-item) { height: 48px; line-height: 48px; border-radius: 14px; margin: 0; padding-left: 18px !important; font-weight: 800; letter-spacing: .01em; transition: .18s ease; }
-:deep(.el-menu-item:hover) { background: rgba(59,130,246,.12); color: #fff; }
-:deep(.el-menu-item.is-active) { background: linear-gradient(135deg, rgba(37,99,235,.95), rgba(14,165,233,.82)); box-shadow: 0 12px 28px rgba(37,99,235,.28); color: #fff; }
-.aside-footer { margin-top: auto; padding: 0 10px; display: grid; gap: 10px; }
+.aside { padding: 22px 14px; background: rgba(255,255,255,.055); border-right: 1px solid rgba(255,255,255,.11); backdrop-filter: blur(22px); -webkit-backdrop-filter: blur(22px); display: flex; flex-direction: column; }
+.brand { display: flex; gap: 12px; align-items: center; padding: 8px 10px 22px; }
+.brand-mark { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; background: linear-gradient(140deg,#a78bfa,#ec4899); font-weight: 800; font-size: 12px; color: #fff; box-shadow: 0 10px 26px -12px rgba(236,72,153,.9); }
+.brand-name { font-weight: 700; color: #fff; font-size: 14px; letter-spacing: -.01em; }
+.brand-sub { font-size: 11px; color: rgba(255,255,255,.5); margin-top: 3px; }
+:deep(.el-menu) { border-right: 0; display: grid; gap: 3px; background: transparent !important; }
+:deep(.el-menu-item) { height: 40px; line-height: 40px; border-radius: 10px; margin: 0; padding-left: 14px !important; font-weight: 500; font-size: 13px; color: rgba(255,255,255,.74) !important; border: 1px solid transparent; transition: .18s ease; }
+:deep(.el-menu-item:hover) { background: rgba(255,255,255,.09) !important; color: #fff !important; }
+:deep(.el-menu-item.is-active) { background: rgba(255,255,255,.16) !important; border-color: rgba(255,255,255,.24); box-shadow: 0 10px 26px -18px rgba(255,255,255,.65); color: #fff !important; font-weight: 600; }
+.aside-footer { margin-top: auto; padding: 0 6px; display: grid; gap: 10px; }
 .logout-btn { width: 100%; }
-.topbar { height: 82px; display: flex; align-items: center; justify-content: space-between; gap: 14px; border-bottom: 1px solid rgba(255,255,255,.08); background: rgba(15,23,42,.66); backdrop-filter: blur(16px); padding: 0 28px; }
+.topbar { height: 62px; display: flex; align-items: center; justify-content: space-between; gap: 14px; border-bottom: 1px solid rgba(255,255,255,.1); background: rgba(255,255,255,.05); backdrop-filter: blur(22px); -webkit-backdrop-filter: blur(22px); padding: 0 26px; }
 .mobile-menu-btn { display: none; flex: 0 0 auto; }
 .topbar-title-block { min-width: 0; }
-.top-title { color: #fff; font-size: 21px; font-weight: 900; }
-.course-line { color: #94a3b8; margin-top: 5px; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.main { padding: 30px; }
+.top-title { color: #fff; font-size: 16px; font-weight: 700; letter-spacing: -.01em; }
+.course-line { color: rgba(255,255,255,.55); margin-top: 4px; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.main { padding: 26px 28px 60px; }
 .mobile-logout { width: 100%; margin-top: 18px; }
-:global(.mobile-drawer .el-drawer__body) { background: rgba(15,23,42,.98); padding: 14px; }
-:global(.mobile-drawer .el-drawer__header) { margin-bottom: 0; padding: 18px; background: rgba(15,23,42,.98); color: #fff; }
-:global(.mobile-drawer .el-menu) { border-right: 0; }
-:global(.mobile-drawer .el-menu-item) { border-radius: 12px; margin-bottom: 6px; font-weight: 800; }
-:global(.mobile-drawer .el-menu-item.is-active) { background: linear-gradient(135deg, rgba(37,99,235,.95), rgba(14,165,233,.82)); color: #fff; }
+:global(.mobile-drawer .el-drawer__body) { background: rgba(18,12,30,.98); padding: 14px; }
+:global(.mobile-drawer .el-drawer__header) { margin-bottom: 0; padding: 18px; background: rgba(18,12,30,.98); color: #fff; }
+:global(.mobile-drawer .el-menu) { border-right: 0; background: transparent !important; }
+:global(.mobile-drawer .el-menu-item) { border-radius: 10px; margin-bottom: 4px; font-weight: 500; color: rgba(255,255,255,.75); }
+:global(.mobile-drawer .el-menu-item.is-active) { background: rgba(255,255,255,.16); color: #fff; }
 @media (max-width: 900px) {
   .aside { display:none; }
   /* 新增：移动端响应式，避免全局按钮 100% 宽度把顶部撑高 */

@@ -3,7 +3,11 @@ import { ElMessage } from 'element-plus'
 import router from '../router'
 import { useAuthStore } from '../stores/auth'
 
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000'
+// 默认走同源的 /api 前缀：开发时由 vite proxy 转发到 127.0.0.1:8000，
+// 生产时由 nginx 转发到 api:8000（两边都会剥掉 /api 前缀）。
+// 注意不要默认成 http://127.0.0.1:8000 —— npm run build 不读 .env.development，
+// 那样打包进前端的会是用户自己电脑的地址，浏览器里必然报 Network Error。
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api'
 
 const request = axios.create({
   baseURL: API_BASE_URL,

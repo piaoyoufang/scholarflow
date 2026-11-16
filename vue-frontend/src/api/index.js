@@ -1,4 +1,5 @@
 ﻿import request, { API_BASE_URL } from './request'
+import { useAuthStore } from '../stores/auth'
 
 export const authApi = {
   login: (payload) => request.post('/auth/login', payload),
@@ -70,7 +71,7 @@ export const courseApi = {
  * handlers 支持 meta / delta / done / error 四个事件回调，signal 用于「停止生成」。
  */
 export async function askCourseStream(courseId, payload, handlers = {}, signal) {
-  const response = await fetch(`${API_BASE_URL}/courses/${courseId}/ask/stream`, {
+  const postStream = () => fetch(`${API_BASE_URL}/courses/${courseId}/ask/stream`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -80,6 +81,19 @@ export async function askCourseStream(courseId, payload, handlers = {}, signal) 
     body: JSON.stringify(payload),
     signal
   })
+
+  let response = await postStream()
+  // fetch 不走 axios 拦截器：401 时手动用 refresh_token 静默续期并重试一次
+  if (response.status === 401) {
+    try {
+      const auth = useAuthStore()
+      await auth.refresh()
+      handlers.token = auth.accessToken
+      response = await postStream()
+    } catch {
+      // 续期失败沿用下面的错误提示，交给页面跳转登录
+    }
+  }
 
   if (!response.ok) {
     let detail = `请求失败（${response.status}）`
